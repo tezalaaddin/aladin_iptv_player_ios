@@ -346,7 +346,15 @@ class _MainPageState extends State<MainPage> {
             // 3. Home'dayız, çıkış onayı iste
             final shouldExit = await _showExitConfirmation(s);
             if (shouldExit && mounted) {
-              await SystemChannels.platform.invokeMethod('SystemNavigator.pop');
+              if (defaultTargetPlatform == TargetPlatform.android) {
+                await SystemChannels.platform.invokeMethod('SystemNavigator.pop');
+              } else {
+                // On iOS, exiting the app programmatically is discouraged.
+                // We show a message instead or just do nothing.
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Uygulamadan çıkmak için Home tuşuna basın.'))
+                );
+              }
             } else {
               _navNodes[_index].requestFocus();
             }
