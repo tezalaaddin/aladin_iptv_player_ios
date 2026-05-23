@@ -94,7 +94,7 @@ class AladinEpgEngine extends ChangeNotifier {
         await _commitBestPrograms(sharedBestPrograms, syncSessionId);
         
         // 2. Only if everything succeeded, delete OLD data
-        await db.writeTxn(() => db.epgProgramModels.filter().not().syncSessionEqualTo(syncSessionId).deleteAll());
+        await db.writeTxn(() => db.collection<EpgProgramModel>().filter().not().syncSessionEqualTo(syncSessionId).deleteAll());
       }
 
       await AladinPrefs.instance.setInt(_kSyncKeyMs, DateTime.now().millisecondsSinceEpoch);
@@ -173,14 +173,14 @@ class AladinEpgEngine extends ChangeNotifier {
 
       if (batch.length >= 500) {
         final currentBatch = List<EpgProgramModel>.from(batch);
-        await db.writeTxn(() => db.epgProgramModels.putAll(currentBatch));
+        await db.writeTxn(() => db.collection<EpgProgramModel>().putAll(currentBatch));
         batch.clear();
         _progress = 0.8 + (stored / total) * 0.15;
         notifyListeners();
       }
     }
     if (batch.isNotEmpty) {
-      await db.writeTxn(() => db.epgProgramModels.putAll(batch));
+      await db.writeTxn(() => db.collection<EpgProgramModel>().putAll(batch));
     }
   }
 
@@ -191,7 +191,7 @@ class AladinEpgEngine extends ChangeNotifier {
     bool hasMore = true;
 
     while (hasMore) {
-      final channels = await db.channelModels.filter()
+      final channels = await db.collection<ChannelModel>().filter()
           .contentTypeEqualTo('tv')
           .offset(offset)
           .limit(batchSize)
@@ -232,7 +232,7 @@ class AladinEpgEngine extends ChangeNotifier {
       }
 
       if (toUpdate.isNotEmpty) {
-        await db.writeTxn(() => db.channelModels.putAll(toUpdate));
+        await db.writeTxn(() => db.collection<ChannelModel>().putAll(toUpdate));
       }
 
       offset += batchSize;

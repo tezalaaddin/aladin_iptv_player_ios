@@ -27,7 +27,7 @@ class ChannelService {
 
   Future<List<CategoryModel>> getCategories(
           {required int playlistId, required String contentType}) =>
-      _db.categoryModels
+      _db.collection<CategoryModel>()
           .filter()
           .playlistIdEqualTo(playlistId)
           .and()
@@ -46,7 +46,7 @@ class ChannelService {
     // Special handling for series: group by seriesName (or name) to avoid duplicate entries for episodes
     if (contentType == 'series') {
       // Optimization: Try to get only "main" records first (url is empty or episode 1/null)
-      final reps = await _db.channelModels
+      final reps = await _db.collection<ChannelModel>()
           .filter()
           .playlistIdEqualTo(playlistId)
           .and()
@@ -62,7 +62,7 @@ class ChannelService {
       if (reps.isNotEmpty) return reps;
 
       // Fallback if no "main" records found (e.g. strange M3U)
-      final all = await _db.channelModels
+      final all = await _db.collection<ChannelModel>()
           .filter()
           .playlistIdEqualTo(playlistId)
           .and()
@@ -87,7 +87,7 @@ class ChannelService {
       return results.sublist(offset, end);
     }
 
-    return _db.channelModels
+    return _db.collection<ChannelModel>()
         .filter()
         .playlistIdEqualTo(playlistId)
         .and()
@@ -102,7 +102,7 @@ class ChannelService {
 
   // ── Favorites ──────────────────────────────────────────────────────────────
 
-  Future<List<ChannelModel>> getFavorites(int playlistId) => _db.channelModels
+  Future<List<ChannelModel>> getFavorites(int playlistId) => _db.collection<ChannelModel>()
       .filter()
       .playlistIdEqualTo(playlistId)
       .and()
@@ -111,20 +111,20 @@ class ChannelService {
 
   Future<void> toggleFavorite(int channelId) async {
     await _db.writeTxn(() async {
-      final ch = await _db.channelModels.get(channelId);
+      final ch = await _db.collection<ChannelModel>().get(channelId);
       if (ch != null) {
         ch.isFavorite = !ch.isFavorite;
-        await _db.channelModels.put(ch);
+        await _db.collection<ChannelModel>().put(ch);
       }
     });
   }
 
   Future<void> setFavoriteByUrl(String url, bool isFavorite) async {
     await _db.writeTxn(() async {
-      final matches = await _db.channelModels.filter().urlEqualTo(url).findAll();
+      final matches = await _db.collection<ChannelModel>().filter().urlEqualTo(url).findAll();
       for (final ch in matches) {
         ch.isFavorite = isFavorite;
-        await _db.channelModels.put(ch);
+        await _db.collection<ChannelModel>().put(ch);
       }
     });
   }
@@ -132,7 +132,7 @@ class ChannelService {
   // ── Recent ─────────────────────────────────────────────────────────────────
 
   Future<List<ChannelModel>> getRecent(int playlistId, {int limit = 20}) =>
-      _db.channelModels
+      _db.collection<ChannelModel>()
           .filter()
           .playlistIdEqualTo(playlistId)
           .lastWatchedIsNotNull()
@@ -141,7 +141,7 @@ class ChannelService {
           .findAll();
 
   Future<ChannelModel?> getLastWatched(int playlistId) =>
-      _db.channelModels
+      _db.collection<ChannelModel>()
           .filter()
           .playlistIdEqualTo(playlistId)
           .lastWatchedIsNotNull()
@@ -150,11 +150,11 @@ class ChannelService {
 
   Future<void> updateWatched(int channelId, int seconds) async {
     await _db.writeTxn(() async {
-      final ch = await _db.channelModels.get(channelId);
+      final ch = await _db.collection<ChannelModel>().get(channelId);
       if (ch != null) {
         ch.lastWatched = DateTime.now();
         ch.watchedSeconds = seconds;
-        await _db.channelModels.put(ch);
+        await _db.collection<ChannelModel>().put(ch);
       }
     });
   }
@@ -163,7 +163,7 @@ class ChannelService {
     if (totalSeconds <= 0) return;
     
     await _db.writeTxn(() async {
-      final matches = await _db.channelModels.filter().urlEqualTo(url).findAll();
+      final matches = await _db.collection<ChannelModel>().filter().urlEqualTo(url).findAll();
       for (final ch in matches) {
         final percent = (seconds / totalSeconds) * 100;
         
@@ -178,7 +178,7 @@ class ChannelService {
           ch.watchedSeconds = totalSeconds;
           ch.totalDurationSeconds = totalSeconds;
         }
-        await _db.channelModels.put(ch);
+        await _db.collection<ChannelModel>().put(ch);
         
         // ⚡ PRO FEATURE: Sync to Platform Watch Next (Future Implementation)
         if (ch.contentType != 'tv') {
@@ -191,7 +191,7 @@ class ChannelService {
   /// Dizi ana sayfası için her dizinin izleme oranını hesaplar (Bellek Optimize)
   Future<Map<String, double>> getSeriesProgressMap(int playlistId) async {
     // Sadece izlenen dizi bölümlerini çekiyoruz.
-    final watchedSeries = await _db.channelModels
+    final watchedSeries = await _db.collection<ChannelModel>()
         .filter()
         .playlistIdEqualTo(playlistId)
         .and()
@@ -217,9 +217,9 @@ class ChannelService {
   }
 
   /// Returns items that are partially watched (between 3% and 90%)
-  /// UPDATED: Only one entry per Series (the latest one)
+  /// UPDATED: Only one per Series (the latest one)
   Future<List<ChannelModel>> getContinueWatching(int playlistId, {int limit = 20}) async {
-    final allRecent = await _db.channelModels
+    final allRecent = await _db.collection<ChannelModel>()
         .filter()
         .playlistIdEqualTo(playlistId)
         .lastWatchedIsNotNull()
@@ -255,17 +255,17 @@ class ChannelService {
 
   // ── Search ─────────────────────────────────────────────────────────────────
 
-  Future<ChannelModel?> getById(int id) => _db.channelModels.get(id);
+  Future<ChannelModel?> getById(int id) => _db.collection<ChannelModel>().get(id);
 
   Future<ChannelModel?> getByUrl(String url) =>
-      _db.channelModels.filter().urlEqualTo(url).findFirst();
+      _db.collection<ChannelModel>().filter().urlEqualTo(url).findFirst();
 
   Future<List<ChannelModel>> search(
       {required int playlistId, required String query, int limit = 50}) async {
     final trimmed = query.trim();
     if (trimmed.length < 2) return [];
     
-    return _db.channelModels
+    return _db.collection<ChannelModel>()
         .filter()
         .playlistIdEqualTo(playlistId)
         .and()
@@ -285,7 +285,7 @@ class ChannelService {
     // 2. Perform fuzzy match on this smaller subset (more likely to contain matches)
     final firstWord = trimmed.split(' ').first;
     
-    final subset = await _db.channelModels
+    final subset = await _db.collection<ChannelModel>()
         .filter()
         .playlistIdEqualTo(playlistId)
         .and()
@@ -318,7 +318,7 @@ class ChannelService {
 
   Future<List<ChannelModel>> getSeriesRepresentatives(int playlistId) async {
     // Proactive optimization for memory: get empty URL or Episode 1/null records
-    final reps = await _db.channelModels
+    final reps = await _db.collection<ChannelModel>()
         .filter()
         .playlistIdEqualTo(playlistId)
         .and()
@@ -330,7 +330,7 @@ class ChannelService {
     if (reps.isNotEmpty) return reps;
 
     // ⚡ PERFORMANS: Last resort fallback'e limit ekleyerek RAM çökmesini engelle
-    final all = await _db.channelModels
+    final all = await _db.collection<ChannelModel>()
         .filter()
         .playlistIdEqualTo(playlistId)
         .and()
@@ -350,7 +350,7 @@ class ChannelService {
 
   Future<List<ChannelModel>> getSeriesEpisodes(int playlistId, String sName) async {
     final trimmed = sName.trim();
-    return _db.channelModels
+    return _db.collection<ChannelModel>()
         .filter()
         .playlistIdEqualTo(playlistId)
         .and()
@@ -368,7 +368,7 @@ class ChannelService {
     int? season,
   }) async {
     final trimmed = seriesName.trim();
-    var query = _db.channelModels
+    var query = _db.collection<ChannelModel>()
         .filter()
         .playlistIdEqualTo(playlistId)
         .and()
@@ -385,7 +385,7 @@ class ChannelService {
 
   Future<List<ChannelModel>> getRecentlyAdded(int playlistId, {int limit = 20}) async {
     // ⚡ PRO OPTIMIZATION: Use Isar's native distinctBy for deduplication
-    final results = await _db.channelModels
+    final results = await _db.collection<ChannelModel>()
         .where()
         .playlistIdEqualTo(playlistId)
         .distinctBySeriesName()
@@ -396,7 +396,7 @@ class ChannelService {
   }
 
   Future<List<ChannelModel>> getRandomDiscovery(int playlistId, {int limit = 20}) async {
-    final total = await _db.channelModels.filter().playlistIdEqualTo(playlistId).count();
+    final total = await _db.collection<ChannelModel>().filter().playlistIdEqualTo(playlistId).count();
     if (total == 0) return [];
 
     final fetchLimit = limit * 5;
@@ -404,7 +404,7 @@ class ChannelService {
         ? (DateTime.now().microsecondsSinceEpoch % (total - fetchLimit))
         : 0;
 
-    final all = await _db.channelModels
+    final all = await _db.collection<ChannelModel>()
         .filter()
         .playlistIdEqualTo(playlistId)
         .offset(randomOffset)
@@ -428,12 +428,12 @@ class ChannelService {
   }
 
   Future<void> saveChannels(List<ChannelModel> channels) async {
-    await _db.writeTxn(() => _db.channelModels.putAll(channels));
+    await _db.writeTxn(() => _db.collection<ChannelModel>().putAll(channels));
   }
 
   /// Optimized category count update
   Future<void> updateCategoryCountsForPlaylist(int playlistId) async {
-    final cats = await _db.categoryModels.filter().playlistIdEqualTo(playlistId).findAll();
+    final cats = await _db.collection<CategoryModel>().filter().playlistIdEqualTo(playlistId).findAll();
     if (cats.isEmpty) return;
 
     final Map<int, int> finalCounts = {};
@@ -447,7 +447,7 @@ class ChannelService {
     bool hasMore = true;
 
     while (hasMore) {
-      final batch = await _db.channelModels
+      final batch = await _db.collection<ChannelModel>()
           .filter()
           .playlistIdEqualTo(playlistId)
           .offset(offset)
@@ -480,7 +480,7 @@ class ChannelService {
     await _db.writeTxn(() async {
       for (var cat in cats) {
         cat.channelCount = finalCounts[cat.id] ?? 0;
-        await _db.categoryModels.put(cat);
+        await _db.collection<CategoryModel>().put(cat);
       }
     });
   }
@@ -497,7 +497,7 @@ class ChannelService {
     bool applyToAllEpisodes = false,
   }) async {
     await _db.writeTxn(() async {
-      final ch = await _db.channelModels.get(channelId);
+      final ch = await _db.collection<ChannelModel>().get(channelId);
       if (ch == null) return;
 
       ch.tmdbId = tmdbId ?? ch.tmdbId;
@@ -505,11 +505,11 @@ class ChannelService {
       ch.tmdbPoster = poster ?? ch.tmdbPoster;
       ch.tmdbOverview = overview ?? ch.tmdbOverview;
       ch.tmdbYear = year ?? ch.tmdbYear;
-      await _db.channelModels.put(ch);
+      await _db.collection<ChannelModel>().put(ch);
 
       if (applyToAllEpisodes && ch.contentType == 'series') {
         final seriesName = ch.seriesName ?? ch.name;
-        final episodes = await _db.channelModels
+        final episodes = await _db.collection<ChannelModel>()
             .filter()
             .playlistIdEqualTo(ch.playlistId)
             .and()
@@ -525,7 +525,7 @@ class ChannelService {
           ep.tmdbPoster = poster ?? ep.tmdbPoster;
           ep.tmdbOverview = overview ?? ep.tmdbOverview;
           ep.tmdbYear = year ?? ep.tmdbYear;
-          await _db.channelModels.put(ep);
+          await _db.collection<ChannelModel>().put(ep);
         }
       }
     });

@@ -29,7 +29,7 @@ class EpgService {
     final now = DateTime.now();
 
     // Strategy 1: Search by exact channelId (tvg-id)
-    var program = await _db.epgProgramModels
+    var program = await _db.collection<EpgProgramModel>()
         .filter()
         .channelIdEqualTo(channelId)
         .and()
@@ -41,7 +41,7 @@ class EpgService {
     if (program != null) return program;
 
     // Strategy 2: Search by normalized channelId
-    program = await _db.epgProgramModels
+    program = await _db.collection<EpgProgramModel>()
         .filter()
         .normalizedChannelIdEqualTo(normId)
         .and()
@@ -57,7 +57,7 @@ class EpgService {
     if (effectiveClean != null) {
       final normName = AladinEpgEngine.normalizeId(effectiveClean);
       if (normName != normId) {
-        program = await _db.epgProgramModels
+        program = await _db.collection<EpgProgramModel>()
             .filter()
             .normalizedChannelIdEqualTo(normName)
             .and()
@@ -84,7 +84,7 @@ class EpgService {
     final now = DateTime.now();
 
     // Try finding by normalizedId first as it's the most common match
-    var results = await _db.epgProgramModels
+    var results = await _db.collection<EpgProgramModel>()
         .filter()
         .group((q) => q.channelIdEqualTo(channelId).or().normalizedChannelIdEqualTo(normId))
         .and()
@@ -100,7 +100,7 @@ class EpgService {
     if (effectiveClean != null) {
       final normName = AladinEpgEngine.normalizeId(effectiveClean);
       if (normName != normId) {
-        results = await _db.epgProgramModels
+        results = await _db.collection<EpgProgramModel>()
             .filter()
             .normalizedChannelIdEqualTo(normName)
             .and()
@@ -116,14 +116,14 @@ class EpgService {
 
   // ── Stats ─────────────────────────────────────────────────────────────────
 
-  Future<int> totalProgrammes() => _db.epgProgramModels.count();
+  Future<int> totalProgrammes() => _db.collection<EpgProgramModel>().count();
 
   /// Returns all programmes for a channel, sorted by start time.
   Future<List<EpgProgramModel>> getPrograms(String channelId, {String? cleanName}) async {
     final normId = AladinEpgEngine.normalizeId(channelId);
     
     // Search by both channelId and normalizedId
-    var results = await _db.epgProgramModels
+    var results = await _db.collection<EpgProgramModel>()
         .filter()
         .group((q) => q.channelIdEqualTo(channelId).or().normalizedChannelIdEqualTo(normId))
         .sortByStartTime()
@@ -131,7 +131,7 @@ class EpgService {
 
     if (results.isEmpty && cleanName != null) {
       final normName = AladinEpgEngine.normalizeId(cleanName);
-      results = await _db.epgProgramModels
+      results = await _db.collection<EpgProgramModel>()
           .filter()
           .normalizedChannelIdEqualTo(normName)
           .sortByStartTime()

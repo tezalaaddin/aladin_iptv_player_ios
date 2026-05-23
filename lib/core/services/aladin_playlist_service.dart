@@ -34,24 +34,24 @@ class PlaylistService {
   // ── Read ──────────────────────────────────────────────────────────────────
 
   Future<List<PlaylistModel>> getAll() async {
-    final list = await _db.playlistModels.where().findAll();
+    final list = await _db.collection<PlaylistModel>().where().findAll();
     return list.reversed.toList();
   }
 
-  Future<PlaylistModel?> getById(int id) => _db.playlistModels.get(id);
+  Future<PlaylistModel?> getById(int id) => _db.collection<PlaylistModel>().get(id);
 
   Future<PlaylistModel?> findByUrl(String url) =>
-      _db.playlistModels.filter().urlEqualTo(url).findFirst();
+      _db.collection<PlaylistModel>().filter().urlEqualTo(url).findFirst();
 
   Future<void> saveStub(PlaylistModel p) async =>
-      _db.writeTxn(() => _db.playlistModels.put(p));
+      _db.writeTxn(() => _db.collection<PlaylistModel>().put(p));
 
   Future<void> rename(int id, String name) async {
     await _db.writeTxn(() async {
-      final p = await _db.playlistModels.get(id);
+      final p = await _db.collection<PlaylistModel>().get(id);
       if (p != null) {
         p.name = name;
-        await _db.playlistModels.put(p);
+        await _db.collection<PlaylistModel>().put(p);
       }
     });
   }
@@ -59,9 +59,9 @@ class PlaylistService {
   Future<void> delete(int id) async {
     await _deletePass(id);
     await _db.writeTxn(() async {
-      await _db.channelModels.filter().playlistIdEqualTo(id).deleteAll();
-      await _db.categoryModels.filter().playlistIdEqualTo(id).deleteAll();
-      await _db.playlistModels.delete(id);
+      await _db.collection<ChannelModel>().filter().playlistIdEqualTo(id).deleteAll();
+      await _db.collection<CategoryModel>().filter().playlistIdEqualTo(id).deleteAll();
+      await _db.collection<PlaylistModel>().delete(id);
     });
   }
 
@@ -135,16 +135,16 @@ class PlaylistService {
 
     late int playlistId;
     await _db.writeTxn(() async {
-      playlistId = await _db.playlistModels.put(playlist);
+      playlistId = await _db.collection<PlaylistModel>().put(playlist);
     });
 
     if (existing != null) {
       await _db.writeTxn(() async {
-        await _db.channelModels
+        await _db.collection<ChannelModel>()
             .filter()
             .playlistIdEqualTo(playlistId)
             .deleteAll();
-        await _db.categoryModels
+        await _db.collection<CategoryModel>()
             .filter()
             .playlistIdEqualTo(playlistId)
             .deleteAll();
@@ -169,7 +169,7 @@ class PlaylistService {
           );
 
     await for (final batch in stream) {
-      await _db.writeTxn(() => _db.channelModels.putAll(batch));
+      await _db.writeTxn(() => _db.collection<ChannelModel>().putAll(batch));
       allChannels.addAll(batch);
       total += batch.length;
       for (final ch in batch) {
@@ -185,16 +185,16 @@ class PlaylistService {
     }
 
     final cats = AladinImportBridge.buildCategories(allChannels, playlistId);
-    await _db.writeTxn(() => _db.categoryModels.putAll(cats));
+    await _db.writeTxn(() => _db.collection<CategoryModel>().putAll(cats));
 
     await _db.writeTxn(() async {
-      final p = await _db.playlistModels.get(playlistId);
+      final p = await _db.collection<PlaylistModel>().get(playlistId);
       if (p != null) {
         p.totalCount = total;
         p.tvCount = tv;
         p.movieCount = movie;
         p.seriesCount = series;
-        await _db.playlistModels.put(p);
+        await _db.collection<PlaylistModel>().put(p);
       }
     });
 
@@ -203,13 +203,13 @@ class PlaylistService {
     // ⚡ PRO FEATURE: Sync to Android TV Global Search
     await ChannelService.instance.syncSearchData(playlistId);
 
-    return (await _db.playlistModels.get(playlistId))!;
+    return (await _db.collection<PlaylistModel>().get(playlistId))!;
   }
 
   // ── Refresh Playlist ──────────────────────────────────────────────────────
 
   Future<void> refreshPlaylist(int playlistId, {ProgressCallback? onProgress}) async {
-    final p = await _db.playlistModels.get(playlistId);
+    final p = await _db.collection<PlaylistModel>().get(playlistId);
     if (p == null) return;
 
     if (p.type == 'xtream') {
