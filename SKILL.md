@@ -1067,6 +1067,8 @@ git push
 **2. Proje Temizliği:**
 - `main.dart` içerisindeki `_setupNativeListener()` metodu ve çağrısı silindi. Artık native Android tarafına veri gönderilmiyor.
 - `aladin_settings_page.dart` üzerinde "Decoder Modu" (HW/SW) ayarı `defaultTargetPlatform == TargetPlatform.android` kontrolü ile iOS cihazlarda gizlendi (iOS'ta decoder seçimi native olarak yönetilir).
+- **Local Import (iOS):** `AladinFolderExplorer` yerine iOS'ta native `FilePicker` kullanılarak dosya seçimi optimize edildi.
+- **Service Cleanup:** `ChannelService` içerisindeki Android native MethodChannel ve Android TV'ye özel (Watch Next/Search) kodlar temizlendi/iOS uyumlu hale getirildi.
 
 **3. iOS Platform Yapılandırması:**
 - `flutter create --platforms=ios .` ile `ios/` klasörü initialize edildi.
@@ -1080,6 +1082,11 @@ git push
 - iOS ve macOS (tvOS desteği için) native binary paketleri `1.1.4` sürümüne sabitlendi.
 - Gereksiz Android-only yorum satırları ve kütüphaneler ayıklandı.
 
+**5. CI/CD Hazırlığı (Codemagic):**
+- Proje köküne `codemagic.yaml` eklendi.
+- iOS Debug ve Release build akışları tanımlandı.
+- Isar kod üretimi (`build_runner`) build sürecine entegre edildi.
+
 ---
 
 ## Versiyon Geçmişi
@@ -1088,3 +1095,4 @@ git push
 |----------|-------|-----|
 | 1.0.0 | 2026-05-24 | Android TV fork, media_kit entegrasyonu başladı |
 | 1.0.0+1 | 2024-05-24 | iOS Player Migrasyonu tamamlandı, ilk iOS build hazırlığı. |
+| 1.0.0+2 | 2024-05-24 | iOS Kod Optimizasyonu: Local File Picker entegrasyonu, gereksiz native Android servislerinin temizliği ve Codemagic build konfigürasyonu. |

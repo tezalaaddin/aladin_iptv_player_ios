@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../../core/models/aladin_playlist_model.dart';
 import '../../../core/services/aladin_playlist_service.dart';
 import '../../../core/services/aladin_update_service.dart';
@@ -295,10 +296,19 @@ class _SettingsPageState extends State<SettingsPage> {
     final state = context.read<AppState>();
     final s = state.s;
 
-    final path = await showDialog<String>(
-      context: context,
-      builder: (_) => const AladinFolderExplorer(),
-    );
+    String? path;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      path = await showDialog<String>(
+        context: context,
+        builder: (_) => const AladinFolderExplorer(),
+      );
+    } else {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['m3u', 'm3u8'],
+      );
+      path = result?.files.single.path;
+    }
 
     if (path != null) {
       final nameResult = await showDialog<String>(

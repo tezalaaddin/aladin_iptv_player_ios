@@ -11,51 +11,16 @@ class ChannelService {
   static final ChannelService instance = ChannelService._();
   Isar get _db => IsarService.instance.db;
 
-  static const _exoChannel = MethodChannel('aladin/exoplayer');
+  // ── System Sync ──────────────────────────────────────────────────────────
 
-  // ── System Sync (Android TV Search & Watch Next) ──────────────────────────
-
-  /// Syncs the top N channels to the Android TV Global Search database
+  /// Syncs the top N channels (Placeholder for iOS/tvOS)
   Future<void> syncSearchData(int playlistId) async {
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      // Get a representative sample of channels (e.g., first 500)
-      final items = await _db.channelModels
-          .filter()
-          .playlistIdEqualTo(playlistId)
-          .limit(1000)
-          .findAll();
-
-      final data = items.map((e) => {
-        'id': e.id.toString(),
-        'name': e.name,
-        'category': e.categoryName,
-        'logo': e.logoUrl ?? '',
-        'url': e.url,
-      }).toList();
-
-      try {
-        await _exoChannel.invokeMethod('syncSearchData', {'items': data});
-      } catch (e) {
-        debugPrint('[ChannelService] syncSearchData error: $e');
-      }
-    }
+    // iOS/tvOS doesn't use the same Global Search API as Android TV
   }
 
-  /// Adds an item to the Android TV "Watch Next" home screen channel
+  /// Adds an item to Watch Next (Placeholder for iOS/tvOS)
   Future<void> addToWatchNext(ChannelModel ch) async {
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      try {
-        await _exoChannel.invokeMethod('addToWatchNext', {
-          'title': ch.name,
-          'description': ch.tmdbOverview ?? ch.categoryName,
-          'poster': ch.tmdbPoster ?? ch.logoUrl ?? '',
-          'url': ch.url,
-          'contentType': ch.contentType,
-        });
-      } catch (e) {
-        debugPrint('[ChannelService] addToWatchNext error: $e');
-      }
-    }
+    // iOS/tvOS doesn't use the same Watch Next API as Android TV
   }
 
   // ── Categories ─────────────────────────────────────────────────────────────
@@ -215,7 +180,7 @@ class ChannelService {
         }
         await _db.channelModels.put(ch);
         
-        // ⚡ PRO FEATURE: Sync to Android TV "Watch Next"
+        // ⚡ PRO FEATURE: Sync to Platform Watch Next (Future Implementation)
         if (ch.contentType != 'tv') {
           addToWatchNext(ch);
         }
