@@ -14,13 +14,12 @@ workflows:
       - name: Isar Code Gen
         script: |
           flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Hardcore Unsigned Build (Build 16)
+      - name: Ultimate Assembly (Build 17)
         script: |
-          # 1. Flutter AOT ve Assets üretimi
-          # KOD HATASI VARSA BURADA DURUR
-          flutter build ios --release --no-codesign
+          # 1. Flutter Derlemesi (AOT ve Frameworkler için)
+          flutter build ios --release --no-codesign || true
           
-          # 2. Xcode Manuel Derleme (Ad-hoc imzayı zorlayarak)
+          # 2. Xcode Derlemesi (Ad-hoc imza ile)
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
@@ -30,55 +29,47 @@ workflows:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=YES \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            DEVELOPMENT_TEAM="" \
-            PROVISIONING_PROFILE="" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            GENERATE_INFOPLIST_FILE=YES \
             clean build | xcpretty
             
-      - name: Extreme Assembly
-        script: |
-          # Codemagic'in aradığı hedef dizin
+          # 3. MANUEL MONTAJ
           FINAL_APP="$CM_BUILD_DIR/build/ios/iphoneos/Runner.app"
           rm -rf "$FINAL_APP"
           mkdir -p "$FINAL_APP/Frameworks"
           
-          # A) Üretilen ana binary dosyasını bul
-          echo "Runner binary aranıyor..."
-          RUNNER_BIN=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner" -type f -path "*/Release-iphoneos/*" | xargs ls -t | head -n 1)
-          if [ -n "$RUNNER_BIN" ]; then
-            echo "✅ Runner bulundu: $RUNNER_BIN"
-            cp "$RUNNER_BIN" "$FINAL_APP/"
-          else
-            echo "❌ Runner binary BULUNAMADI! Derleme loglarını (Xcode output) kontrol edin."
-            exit 1
-          fi
+          # A) Kaynak Uygulama Klasörünü Bul
+          REAL_APP=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*" | xargs ls -td | head -n 1)
+          echo "Kaynak: $REAL_APP"
           
-          # B) Info.plist'i bul ve koy
-          PLIST_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Info.plist" -path "*/Release-iphoneos/Runner.app/*" | head -n 1)
-          cp "$PLIST_PATH" "$FINAL_APP/" || echo "⚠️ Info.plist bulunamadı."
-          
-          # C) App.framework ve Flutter.framework enjeksiyonu
-          cp -R "$CM_BUILD_DIR/ios/Flutter/App.framework" "$FINAL_APP/Frameworks/" || true
-          cp -R "$FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64/Flutter.framework" "$FINAL_APP/Frameworks/" || true
-          
-          # D) Tüm plugin ve eklenti dosyalarını topla
-          find ~/Library/Developer/Xcode/DerivedData -name "*.framework" -path "*/Release-iphoneos/*" -not -name "App.framework" -not -name "Flutter.framework" -exec cp -R {} "$FINAL_APP/Frameworks/" \; || true
-          find ~/Library/Developer/Xcode/DerivedData -name "*.bundle" -path "*/Release-iphoneos/*" -exec cp -R {} "$FINAL_APP/" \; || true
-          
-          # E) Flutter Assetlerini yerleştir
-          cp -R "$CM_BUILD_DIR/build/flutter_assets/." "$FINAL_APP/" || true
-          
-          # F) PkgInfo oluştur
+          # B) Runner, Plist ve PkgInfo kopyala
+          cp "$REAL_APP/Runner" "$FINAL_APP/"
+          cp "$REAL_APP/Info.plist" "$FINAL_APP/"
           echo "APPL????" > "$FINAL_APP/PkgInfo"
+          
+          # C) App.framework (BEYİN) - Flutter derlemesinden al
+          APP_FW=$(find "$CM_BUILD_DIR" -name "App.framework" -type d | grep "Release-iphoneos" | head -n 1)
+          if [ -z "$APP_FW" ]; then APP_FW=$(find "$CM_BUILD_DIR/build/ios/iphoneos" -name "App.framework" -type d | head -n 1); fi
+          echo "App.framework bulundu: $APP_FW"
+          cp -R "$APP_FW" "$FINAL_APP/Frameworks/"
+          
+          # D) Flutter.framework (MOTOR)
+          cp -R "$FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64/Flutter.framework" "$FINAL_APP/Frameworks/"
+          
+          # E) Tüm Plugin Frameworkleri (Ağaçtaki media_kit vb.)
+          find ~/Library/Developer/Xcode/DerivedData -name "*.framework" -path "*/Release-iphoneos/*" -not -name "App.framework" -not -name "Flutter.framework" -exec cp -R {} "$FINAL_APP/Frameworks/" \; || true
+          
+          # F) Assetler ve Bundle'lar (Manifestler dahil)
+          cp -R "$CM_BUILD_DIR/build/flutter_assets/." "$FINAL_APP/" || true
+          find ~/Library/Developer/Xcode/DerivedData -name "*.bundle" -path "*/Release-iphoneos/*" -exec cp -R {} "$FINAL_APP/" \; || true
 
-      - name: Final Verification
+      - name: Integrity Check Build 17
         script: |
           APP_PATH="build/ios/iphoneos/Runner.app"
-          echo "--- FINAL DOSYA LİSTESİ ---"
+          echo "--- KONTROL ---"
           ls -F "$APP_PATH"
+          echo "Frameworks:"
+          ls "$APP_PATH/Frameworks"
           echo "Boyut: $(du -sh $APP_PATH)"
-          [ -f "$APP_PATH/Runner" ] && echo "🚀 RUNNER HAZIR!" || exit 1
+          [ -d "$APP_PATH/Frameworks/App.framework" ] && echo "✅ BEYİN (App.framework) YÜKLENDİ!" || exit 1
           
     artifacts:
       - build/ios/iphoneos/Runner.app
