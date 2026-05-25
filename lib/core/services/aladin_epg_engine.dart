@@ -102,6 +102,7 @@ class AladinEpgEngine extends ChangeNotifier {
       await AladinPrefs.instance.setString(_kSyncStatus, 'ok');
       await AladinPrefs.instance.flush(); // iPad için anında kaydet
       _progress = 1.0;
+      notifyListeners(); // MainPage'e verinin güncellendiğini haber ver
     } catch (e) {
       debugPrint('[EPG] _doSync error: $e');
       await AladinPrefs.instance.setString(_kSyncStatus, 'error');

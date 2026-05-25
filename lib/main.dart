@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:provider/provider.dart';
 import 'core/database/aladin_isar_service.dart';
 import 'core/services/aladin_channel_service.dart';
@@ -15,6 +16,7 @@ import 'shared/theme/aladin_app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
 
   // ── Hata Yönetimi ─────────────────────────────────────────────────────────
   // Bilinen zararsız render hataları → sessizce yut (SizedBox.shrink).

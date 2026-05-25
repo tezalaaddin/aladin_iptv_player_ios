@@ -251,10 +251,16 @@ class _PlayerPageState extends State<PlayerPage> {
         child: GestureDetector(
           onTap: _onTap,
           child: Stack(
+            fit: StackFit.expand, // Stack tüm ekranı kaplasın
             children: [
               // Video
               if (_initialized)
-                Center(child: Video(controller: _controller))
+                Center(
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9, // Default fallback ratio
+                    child: Video(controller: _controller),
+                  ),
+                )
               else
                 const Center(child: Icon(Icons.videocam_off, color: Colors.white24, size: 64)),
 

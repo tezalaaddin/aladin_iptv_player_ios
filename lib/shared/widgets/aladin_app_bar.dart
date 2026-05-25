@@ -24,12 +24,13 @@ class AladinAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    if (isLandscape) return const SizedBox.shrink();
+    final canPop = Navigator.canPop(context);
+
+    // Ana sayfalarda (SideNavBar olan yerlerde) AppBar'ı gizle, 
+    // ama alt sayfalarda (Geri dönülebilecek yerlerde) her zaman göster.
+    if (isLandscape && !canPop) return const SizedBox.shrink();
 
     final s = context.read<AppState>().s;
-    final double safePadding = MediaQuery.of(context).size.width * 0.05;
-
-    final canPop = Navigator.canPop(context);
 
     return AppBar(
       backgroundColor: AppTheme.background,
