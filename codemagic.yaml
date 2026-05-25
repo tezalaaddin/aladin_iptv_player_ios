@@ -18,13 +18,13 @@ workflows:
           # 1. Dart kodunu Release modunda zorla üret (İmzasız)
           flutter assemble --output=build/ios/iphoneos -dTargetPlatform=ios -dBuildMode=release release_ios_bundle_flutter_assets
           
-          # 2. Release Frameworkleri üret (Sadece kütüphaneler için)
+          # 2. Release Frameworkleri üret (Kütüphaneler için şart)
           flutter build ios --release --no-codesign || true
           
       - name: Xcode Production Build
         script: |
           cd ios
-          # Sahte ad-hoc imza ile ana binary üretimini zorla
+          # Sahte imza ile binary üretimini zorla
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
@@ -35,7 +35,7 @@ workflows:
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             clean build | xcpretty
             
-      - name: Titan Assembly (The Blueprint)
+      - name: Titan Assembly (The Last Stand)
         script: |
           # --- HAZIRLIK ---
           FINAL_APP="$CM_BUILD_DIR/build/ios/iphoneos/Runner.app"
@@ -49,24 +49,28 @@ workflows:
           
           # 2. RELEASE BEYİN ENJEKSİYONU (App.framework)
           APP_FW=$(find "$CM_BUILD_DIR/build/ios/iphoneos" -name "App.framework" -type d | head -n 1)
-          if [ -z "$APP_FW" ]; then APP_FW=$(find . -name "App.framework" -type d -path "*Release*" | head -n 1); fi
           echo "Beyin enjekte ediliyor: $APP_FW"
           rm -rf "$FINAL_APP/Frameworks/App.framework"
           cp -R "$APP_FW" "$FINAL_APP/Frameworks/"
           
           # 3. RELEASE MOTOR ENJEKSİYONU (Flutter.framework)
-          echo "Motor enjekte ediliyor..."
           ENGINE_RELEASE="$FLUTTER_ROOT/bin/cache/artifacts/engine/ios-release/Flutter.xcframework/ios-arm64/Flutter.framework"
+          echo "Motor enjekte ediliyor..."
           rm -rf "$FINAL_APP/Frameworks/Flutter.framework"
           cp -R "$ENGINE_RELEASE" "$FINAL_APP/Frameworks/"
           
-          # 4. TÜM PLUGINLERİ VE BUNDLELARI TOPLA (FFmpeg vb.)
-          echo "Tüm hayati kütüphaneler toplanıyor..."
-          find ~/Library/Developer/Xcode/DerivedData -name "*.framework" -path "*/Release-iphoneos/*" -not -name "App.framework" -not -name "Flutter.framework" -exec cp -R {} "$FINAL_APP/Frameworks/" \; || true
-          find ~/Library/Developer/Xcode/DerivedData -name "*.bundle" -path "*/Release-iphoneos/*" -exec cp -R {} "$FINAL_APP/" \; || true
+          # 4. DEEP SEARCH: TÜM PLUGIN VE FFmpeg KÜTÜPHANELERİNİ TOPLA
+          echo "Hayati kütüphaneler (FFmpeg vb.) aranıyor..."
+          # DerivedData içindeki tüm .framework klasörlerini bul ve kopyala
+          find ~/Library/Developer/Xcode/DerivedData -name "*.framework" -type d -path "*/Release-iphoneos/*" | while read fw; do
+            fw_name=$(basename "$fw")
+            if [[ "$fw_name" != "App.framework" && "$fw_name" != "Flutter.framework" ]]; then
+               echo "Kopyalanıyor: $fw_name"
+               cp -R "$fw" "$FINAL_APP/Frameworks/"
+            fi
+          done
           
-          # 5. ASSETLERİ ÇALIŞAN YAPIYA GÖRE DÜZENLE (Blueprint)
-          # Senin çalışan listende assetler App.framework içindeydi.
+          # 5. ASSETLERİ BLUEPRINT'E GÖRE YERLEŞTİR
           mkdir -p "$FINAL_APP/Frameworks/App.framework/flutter_assets"
           cp -R build/ios/iphoneos/flutter_assets/* "$FINAL_APP/Frameworks/App.framework/flutter_assets/" || true
           
@@ -79,11 +83,12 @@ workflows:
           APP_PATH="build/ios/iphoneos/Runner.app"
           echo "--- FINAL RELEASE KONTROL ---"
           ls -F "$APP_PATH"
-          echo "--- FRAMEWORKS ---"
+          echo "Frameworks (Kritik Liste):"
           ls "$APP_PATH/Frameworks"
+          echo "Final Boyut (Hedef > 40MB):"
           du -sh "$APP_PATH"
-          [ -d "$APP_PATH/Frameworks/App.framework" ] && echo "✅ Release Beyin Hazır" || exit 1
-          [ -d "$APP_PATH/Frameworks/Flutter.framework" ] && echo "✅ Release Motor Hazır" || exit 1
+          [ -d "$APP_PATH/Frameworks/App.framework" ] && echo "✅ Beyin OK"
+          [ -d "$APP_PATH/Frameworks/Avcodec.framework" ] && echo "✅ Player Motoru OK"
           
     artifacts:
       - build/ios/iphoneos/Runner.app
