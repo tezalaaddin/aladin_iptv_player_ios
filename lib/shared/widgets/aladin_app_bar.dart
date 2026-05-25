@@ -31,6 +31,7 @@ class AladinAppBar extends StatelessWidget implements PreferredSizeWidget {
     if (isLandscape && !canPop) return const SizedBox.shrink();
 
     final s = context.read<AppState>().s;
+    final double safePadding = MediaQuery.of(context).size.width * 0.05;
 
     return AppBar(
       backgroundColor: AppTheme.background,
