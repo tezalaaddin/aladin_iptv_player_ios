@@ -11,6 +11,10 @@ workflows:
         script: flutter pub get
       - name: Isar code gen
         script: flutter pub run build_runner build --delete-conflicting-outputs
+      - name: Initialize iOS architecture (macOS only)
+        script: |
+          # Windows'ta oluşturulmayan macOS dosyalarını (podhelper.rb vb.) üretir
+          flutter create --platforms=ios .
       - name: Install Pods
         script: |
           cd ios
