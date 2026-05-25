@@ -14,12 +14,17 @@ workflows:
       - name: Isar Code Gen
         script: |
           flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Hardcore Assembly (Build 19 - Final)
+      - name: Hardcore Release Assembly (Build 20)
         script: |
-          # 1. Flutter Derlemesi (AOT, Assets.car ve Frameworkler üretir)
+          # 1. Ortamı temizle (Debug kalıntılarını sil)
+          flutter clean
+          flutter pub get
+          
+          # 2. Gerçek Release AOT ve Frameworkleri üret
+          # Bu komut 'build/ios/iphoneos/App.framework' içinde gerçek kodu üretir
           flutter build ios --release --no-codesign || true
           
-          # 2. Xcode Derlemesi (Ad-hoc imza ile Runner binary üretir)
+          # 3. Xcode Derlemesi (Binary üretimi)
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
@@ -31,49 +36,49 @@ workflows:
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             clean build | xcpretty
             
-          # 3. MANUEL MONTAJ (Ultimate Merge)
+          # 4. MANUEL MONTAJ (Release Sürüm)
           FINAL_APP="$CM_BUILD_DIR/build/ios/iphoneos/Runner.app"
+          rm -rf "$FINAL_APP"
+          mkdir -p "$FINAL_APP/Frameworks"
           
-          # A) Kaynakları Bul
+          # A) Kaynak Uygulamayı Bul (Xcode çıktısı)
           REAL_APP=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*" | xargs ls -td | head -n 1)
-          echo "Kaynak (Xcode): $REAL_APP"
+          echo "Kaynak: $REAL_APP"
           
-          # B) Önce Flutter'ın ürettiği iskeleti kullan (Assets.car ve Storyboardlar için)
-          # Eğer flutter build ios başarılı olduysa burası doludur
-          FLUTTER_APP="$CM_BUILD_DIR/build/ios/iphoneos/Runner.app"
-          
-          # C) Xcode'un ürettiği Binary ve Plist'i üzerine yaz
+          # B) Ana dosyaları kopyala
           cp "$REAL_APP/Runner" "$FINAL_APP/"
           cp "$REAL_APP/Info.plist" "$FINAL_APP/"
           echo "APPL????" > "$FINAL_APP/PkgInfo"
           
-          # D) EKSİK PARÇALARI DOLDUR (Assets.car, Base.lproj vb.)
-          echo "Eksik görseller aranıyor..."
+          # C) KRİTİK: GERÇEK RELEASE App.framework (Dart Kodunuz)
+          # Statik klasörden DEĞİL, build çıktısından alıyoruz
+          RELEASE_APP_FW=$(find "$CM_BUILD_DIR/build/ios/iphoneos" -name "App.framework" -type d | head -n 1)
+          echo "Release App.framework bulundu: $RELEASE_APP_FW"
+          cp -R "$RELEASE_APP_FW" "$FINAL_APP/Frameworks/"
+          
+          # D) Flutter Motorunu kopyala
+          cp -R "$FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64/Flutter.framework" "$FINAL_APP/Frameworks/"
+          
+          # E) Pluginleri topla
+          find "$REAL_APP/Frameworks" -name "*.framework" -not -name "App.framework" -not -name "Flutter.framework" -exec cp -R {} "$FINAL_APP/Frameworks/" \; || true
+          
+          # F) Görsel Kaynaklar (Assets.car, Storyboardlar)
           find "$REAL_APP" -maxdepth 1 -name "Assets.car" -exec cp {} "$FINAL_APP/" \; || true
           find "$REAL_APP" -maxdepth 1 -name "*.lproj" -exec cp -R {} "$FINAL_APP/" \; || true
           find "$REAL_APP" -maxdepth 1 -name "*.storyboardc" -exec cp -R {} "$FINAL_APP/" \; || true
           
-          # E) Frameworkleri Güncelle
-          mkdir -p "$FINAL_APP/Frameworks"
-          cp -R "$CM_BUILD_DIR/ios/Flutter/App.framework" "$FINAL_APP/Frameworks/"
-          cp -R "$FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64/Flutter.framework" "$FINAL_APP/Frameworks/"
-          
-          # F) Tüm Pluginleri (media_kit vb.) topla
-          find "$REAL_APP/Frameworks" -name "*.framework" -not -name "App.framework" -not -name "Flutter.framework" -exec cp -R {} "$FINAL_APP/Frameworks/" \; || true
-          
-          # G) Assetleri ana dizine yerleştir
+          # G) Assetleri (Görseller, Fontlar) ana dizine koy
           cp -R "$CM_BUILD_DIR/build/flutter_assets" "$FINAL_APP/" || true
 
-      - name: Final Verification Build 19
+      - name: Final Integrity Check Build 20
         script: |
           APP_PATH="build/ios/iphoneos/Runner.app"
-          echo "--- KRİTİK DOSYA KONTROLÜ ---"
-          [ -f "$APP_PATH/Runner" ] && echo "✅ Binary"
-          [ -f "$APP_PATH/Info.plist" ] && echo "✅ Plist"
-          [ -f "$APP_PATH/Assets.car" ] && echo "✅ İkonlar (Assets.car)" || echo "⚠️ İkonlar eksik olabilir"
-          [ -d "$APP_PATH/Frameworks/App.framework" ] && echo "✅ Beyin (App)"
-          [ -d "$APP_PATH/flutter_assets" ] && echo "✅ Varlıklar (Assets)"
+          echo "--- RELEASE KONTROL ---"
+          ls -F "$APP_PATH"
+          echo "--- FRAMEWORKS ---"
+          ls "$APP_PATH/Frameworks"
           du -sh "$APP_PATH"
+          [ -d "$APP_PATH/Frameworks/App.framework" ] && echo "✅ RELEASE BEYİN YÜKLENDİ!" || exit 1
           
     artifacts:
       - build/ios/iphoneos/Runner.app
