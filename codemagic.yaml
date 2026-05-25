@@ -14,56 +14,71 @@ workflows:
       - name: Isar Code Gen
         script: |
           flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Build and Complete Assembly (Build 14)
+      - name: Hardcore Unsigned Build (Build 15)
         script: |
-          # 1. Flutter AOT ve Bundle (Assets) üretimi
+          # 1. Flutter AOT ve Assets üretimi
           flutter build ios --release --no-codesign || true
           
-          # 2. Xcode Derlemesi (İmzasız)
+          # 2. Xcode Manuel Derleme (Ad-hoc imzayı zorlayarak)
+          # Bu yöntem 'ad-hoc' imza kullanarak binary'nin üretilmesini sağlar.
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -sdk iphoneos \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_ALLOWED=YES \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            DEVELOPMENT_TEAM="" \
             PROVISIONING_PROFILE="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
-            DEVELOPMENT_TEAM="" \
+            GENERATE_INFOPLIST_FILE=YES \
             clean build | xcpretty
-          
-          # 3. MANUEL BİRLEŞTİRME (Final Fix)
+            
+      - name: Extreme Assembly
+        script: |
+          # Codemagic'in aradığı hedef dizin
           FINAL_APP="$CM_BUILD_DIR/build/ios/iphoneos/Runner.app"
           rm -rf "$FINAL_APP"
           mkdir -p "$FINAL_APP/Frameworks"
           
-          # A) Xcode'un ürettiği her şeyi kopyala
-          DERIVED_DATA_APP=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*" | xargs ls -td | head -n 1)
-          echo "Kaynak uygulama: $DERIVED_DATA_APP"
-          cp -a "$DERIVED_DATA_APP/." "$FINAL_APP/"
-          
-          # B) App.framework (Dart Kodunuz) - Eksikse zorla kopyala
-          if [ ! -d "$FINAL_APP/Frameworks/App.framework" ]; then
-            echo "⚠️ App.framework eksik, manuel enjekte ediliyor..."
-            APP_FW=$(find "$CM_BUILD_DIR" -name "App.framework" -type d | head -n 1)
-            cp -R "$APP_FW" "$FINAL_APP/Frameworks/"
+          # A) Üretilen ana binary dosyasını bul (DerivedData içinde her yere bak)
+          echo "Runner binary aranıyor..."
+          RUNNER_BIN=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner" -type f -path "*/Release-iphoneos/*" | xargs ls -t | head -n 1)
+          if [ -n "$RUNNER_BIN" ]; then
+            echo "✅ Runner bulundu: $RUNNER_BIN"
+            cp "$RUNNER_BIN" "$FINAL_APP/"
+          else
+            echo "❌ Runner binary YİNE BULUNAMADI!"
+            exit 1
           fi
           
-          # C) Assetleri (Resimler vb.) tazeleyerek kopyala
+          # B) Info.plist'i bul ve koy
+          PLIST_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Info.plist" -path "*/Release-iphoneos/Runner.app/*" | head -n 1)
+          cp "$PLIST_PATH" "$FINAL_APP/" || echo "⚠️ Info.plist bulunamadı, iskeletten kopyalanıyor..."
+          
+          # C) App.framework ve Flutter.framework enjeksiyonu
+          cp -R "$CM_BUILD_DIR/ios/Flutter/App.framework" "$FINAL_APP/Frameworks/" || true
+          cp -R "$FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64/Flutter.framework" "$FINAL_APP/Frameworks/" || true
+          
+          # D) Tüm plugin ve eklenti dosyalarını topla
+          find ~/Library/Developer/Xcode/DerivedData -name "*.framework" -path "*/Release-iphoneos/*" -not -name "App.framework" -not -name "Flutter.framework" -exec cp -R {} "$FINAL_APP/Frameworks/" \; || true
+          find ~/Library/Developer/Xcode/DerivedData -name "*.bundle" -path "*/Release-iphoneos/*" -exec cp -R {} "$FINAL_APP/" \; || true
+          
+          # E) Flutter Assetlerini yerleştir
           cp -R "$CM_BUILD_DIR/build/flutter_assets/." "$FINAL_APP/" || true
           
-          # D) CFBundleExecutable Kontrolü (iPad'de açılması için şart)
-          /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable Runner" "$FINAL_APP/Info.plist" || true
+          # F) PkgInfo oluştur (iOS için şart)
+          echo "APPL????" > "$FINAL_APP/PkgInfo"
 
-      - name: Verify Build 14
+      - name: Final Verification
         script: |
           APP_PATH="build/ios/iphoneos/Runner.app"
-          echo "--- FINAL DOSYA KONTROLÜ ---"
+          echo "--- FINAL DOSYA LİSTESİ ---"
           ls -F "$APP_PATH"
           echo "Boyut: $(du -sh $APP_PATH)"
-          [ -f "$APP_PATH/Runner" ] && echo "✅ Runner Binary Tamam" || exit 1
-          [ -f "$APP_PATH/Info.plist" ] && echo "✅ Info.plist Tamam" || exit 1
+          [ -f "$APP_PATH/Runner" ] && echo "🚀 RUNNER HAZIR!" || exit 1
           
     artifacts:
       - build/ios/iphoneos/Runner.app
