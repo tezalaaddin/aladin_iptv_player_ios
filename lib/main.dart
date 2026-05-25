@@ -18,33 +18,13 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
 
-  // ── Hata Yönetimi ─────────────────────────────────────────────────────────
-  // Bilinen zararsız render hataları → sessizce yut (SizedBox.shrink).
-  // Gerçek hatalar → logla + release'de TV'ye yakışır minimal hata widget'ı göster.
-  // Debug modda orijinal Flutter kırmızı ekran korunur.
   ErrorWidget.builder = (FlutterErrorDetails details) {
     final msg = details.exception.toString();
-
-    // ── Sessizce susturulan bilinen zararsız hatalar ───────────────────────
     final silentPatterns = ['blur radius', 'blurRadius', 'RenderFlex overflowed'];
     if (silentPatterns.any(msg.contains)) {
       return const SizedBox.shrink();
     }
 
-    // ── Loglama (release dahil) ────────────────────────────────────────────
-    // Hata tipini ayırt etmek için prefix kullanıyoruz.
-    final isLayoutError = msg.contains('RenderBox') || msg.contains('layout');
-    final isStateError  = msg.contains('setState') || msg.contains('State');
-    final prefix = isLayoutError ? '[Layout]'
-                 : isStateError  ? '[State]'
-                 : '[Widget]';
-    debugPrint('┌─ AladinError $prefix ──────────────────────────');
-    debugPrint('│ ${details.exception}');
-    debugPrint('│ ${details.context ?? "no context"}');
-    if (!foundation.kReleaseMode) debugPrint('│ ${details.stack}');
-    debugPrint('└────────────────────────────────────────────────');
-
-    // ── Release: TV'ye yakışır minimal hata arayüzü ───────────────────────
     if (foundation.kReleaseMode) {
       return Container(
         decoration: BoxDecoration(
@@ -67,8 +47,6 @@ Future<void> main() async {
         ),
       );
     }
-
-    // ── Debug: Standart Flutter kırmızı ekran ─────────────────────────────
     return ErrorWidget(details.exception);
   };
 
@@ -77,9 +55,8 @@ Future<void> main() async {
     statusBarIconBrightness: Brightness.light,
   ));
 
-  // 🎬 TV PERFORMANS: Image cache'i TV için optimize et
   PaintingBinding.instance.imageCache.maximumSize = 50;
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 50 << 20; // 50 MB
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 50 << 20;
 
   runApp(const AladinApp());
 }
@@ -92,7 +69,7 @@ class AladinApp extends StatefulWidget {
 
 class _AladinAppState extends State<AladinApp>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  int _phase = 0; // 0=splash, 1=language, 2=main
+  int _phase = 0; 
   late AnimationController _animCtrl;
   late Animation<double> _fade;
 
@@ -121,21 +98,14 @@ class _AladinAppState extends State<AladinApp>
     }
   }
 
-
   Future<void> _boot() async {
-    // ⚡ BOOT SIRASI (Madde 3 — Race Condition fix):
-    // AladinPrefs mutlaka ilk önce tamamlanmalı; AppState.init() ve IsarService
-    // ona bağlı olduğundan sıralı başlatma zorunlu. Isar paralel başlatılabilir
-    // çünkü Prefs'e bağımlı değil.
     await AladinPrefs.instance.load();
     await initDI();
     await Future.wait([
       IsarService.instance.init(),
-      AppState.instance.init(), // Artık içinde load() yok, sadece okuma yapıyor
+      AppState.instance.init(),
     ]);
-
     await AppState.instance.loadPlaylists();
-
     final hasLang = AladinPrefs.instance.getString('lang') != null;
     if (!mounted) return;
     await Future.delayed(const Duration(milliseconds: 1000));
@@ -244,24 +214,18 @@ class _LangSelect extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final langs = AppStrings.getLanguageNames();
-
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF1A1A1A),
-              Color(0xFF000000),
-              Color(0xFF0A0A0A),
-            ],
+            colors: [Color(0xFF1A1A1A), Color(0xFF000000), Color(0xFF0A0A0A)],
             stops: [0.0, 0.5, 1.0],
           ),
         ),
         child: Stack(
           children: [
-            // Süsleme amaçlı arka plan deseni (opsiyonel)
             Positioned(
               right: -100,
               top: -100,
@@ -280,7 +244,6 @@ class _LangSelect extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Premium Logo Alanı
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -298,48 +261,30 @@ class _LangSelect extends StatelessWidget {
                     const SizedBox(height: 24),
                     const Text(
                       'Aladin Media Player Pro',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.8,
-                      ),
+                      style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 0.8),
                     ),
                     const Text(
                       'PREMIUM SMART TV EXPERIENCE',
-                      style: TextStyle(
-                        color: AppTheme.accent,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 3.0,
-                      ),
+                      style: TextStyle(color: AppTheme.accent, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 3.0),
                     ),
                     const SizedBox(height: 48),
                     const Text(
                       'Select Language / Dil Seçiniz',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w500),
                     ),
                     const SizedBox(height: 32),
-                    // Buton Izgarası
                     SizedBox(
-                      width: 800, // TV genişliği için sınırla
+                      width: 800,
                       child: Wrap(
                         spacing: 20,
                         runSpacing: 20,
                         alignment: WrapAlignment.center,
                         children: langs.entries.map((e) {
                           final parts = e.value.split(' ');
-                          final flag = parts[0];
-                          final label = parts.skip(1).join(' ');
-                          
                           return _LangBtn(
-                            flag: flag,
-                            label: label,
-                            autofocus: e.key == 'en', // Kullanıcının isteği: İngilizce başta ve odaklı
+                            flag: parts[0],
+                            label: parts.skip(1).join(' '),
+                            autofocus: e.key == 'en',
                             onTap: () => onSelect(e.key),
                           );
                         }).toList(),
@@ -360,14 +305,7 @@ class _LangBtn extends StatefulWidget {
   final String flag, label;
   final VoidCallback onTap;
   final bool autofocus;
-
-  const _LangBtn({
-    required this.flag,
-    required this.label,
-    required this.onTap,
-    this.autofocus = false,
-  });
-
+  const _LangBtn({required this.flag, required this.label, required this.onTap, this.autofocus = false});
   @override
   State<_LangBtn> createState() => _LangBtnState();
 }
@@ -380,28 +318,16 @@ class _LangBtnState extends State<_LangBtn> with SingleTickerProviderStateMixin 
   @override
   void initState() {
     super.initState();
-    _scaleCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 150),
-    );
-    _scale = Tween<double>(begin: 1.0, end: 1.08).animate(
-      CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeOut),
-    );
+    _scaleCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
+    _scale = Tween<double>(begin: 1.0, end: 1.08).animate(CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeOut));
   }
 
   @override
-  void dispose() {
-    _scaleCtrl.dispose();
-    super.dispose();
-  }
+  void dispose() { _scaleCtrl.dispose(); super.dispose(); }
 
   void _onFocus(bool v) {
     setState(() => _focused = v);
-    if (v) {
-      _scaleCtrl.forward();
-    } else {
-      _scaleCtrl.reverse();
-    }
+    if (v) _scaleCtrl.forward(); else _scaleCtrl.reverse();
   }
 
   @override
@@ -410,11 +336,8 @@ class _LangBtnState extends State<_LangBtn> with SingleTickerProviderStateMixin 
       autofocus: widget.autofocus,
       onFocusChange: _onFocus,
       onKeyEvent: (node, event) {
-        if (event is KeyDownEvent &&
-            (event.logicalKey == LogicalKeyboardKey.select ||
-             event.logicalKey == LogicalKeyboardKey.enter)) {
-          widget.onTap();
-          return KeyEventResult.handled;
+        if (event is KeyDownEvent && (event.logicalKey == LogicalKeyboardKey.select || event.logicalKey == LogicalKeyboardKey.enter)) {
+          widget.onTap(); return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
       },
@@ -424,41 +347,20 @@ class _LangBtnState extends State<_LangBtn> with SingleTickerProviderStateMixin 
           scale: _scale,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            width: 240, // Biraz daha daraltıp yan yana daha çok sığdıralım
+            width: 240,
             height: 72,
             decoration: BoxDecoration(
-              color: _focused ? Colors.white : Colors.white.withValues(alpha: 0.08),
+              color: _focused ? Colors.white : Colors.white.withOpacity(0.08),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: _focused ? Colors.white : Colors.white24,
-                width: _focused ? 0 : 1,
-              ),
-              boxShadow: _focused
-                  ? [
-                      BoxShadow(
-                        color: Colors.white.withOpacity(0.3),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      )
-                    ]
-                  : [],
+              border: Border.all(color: _focused ? Colors.white : Colors.white24, width: _focused ? 0 : 1),
+              boxShadow: _focused ? [BoxShadow(color: Colors.white.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))] : [],
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  widget.flag,
-                  style: const TextStyle(fontSize: 28),
-                ),
+                Text(widget.flag, style: const TextStyle(fontSize: 28)),
                 const SizedBox(width: 14),
-                Text(
-                  widget.label,
-                  style: TextStyle(
-                    color: _focused ? Colors.black : Colors.white,
-                    fontSize: 18,
-                    fontWeight: _focused ? FontWeight.w800 : FontWeight.w600,
-                  ),
-                ),
+                Text(widget.label, style: TextStyle(color: _focused ? Colors.black : Colors.white, fontSize: 18, fontWeight: _focused ? FontWeight.w800 : FontWeight.w600)),
               ],
             ),
           ),
