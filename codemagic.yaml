@@ -14,14 +14,14 @@ workflows:
       - name: Initialize iOS architecture
         script: |
           flutter create --platforms=ios .
-          # Copy podhelper if missing
+          # Ensure podhelper is present
           cp $FLUTTER_ROOT/packages/flutter_tools/bin/podhelper.rb ios/Flutter/ || true
       - name: Configure Unsigned Build
         script: |
           # Inject signing bypass into XCConfigs
           echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_IDENTITY=" >> ios/Flutter/Release.xcconfig
           echo "PROVISIONING_PROFILE=" >> ios/Flutter/Release.xcconfig
           echo "PROVISIONING_PROFILE_SPECIFIER=" >> ios/Flutter/Release.xcconfig
           echo "DEVELOPMENT_TEAM=" >> ios/Flutter/Release.xcconfig
@@ -32,10 +32,11 @@ workflows:
           pod install
       - name: Build Unsigned Release
         script: |
-          # Use xcodebuild directly to avoid Flutter CLI's Team ID requirement
-          # First, generate AOT artifacts
-          flutter build ios --release --no-codesign --extra-gen-snapshot-options=--no-use-integer-division || true
+          # Step 1: Force Flutter to prepare all assets and frameworks
+          # We ignore the error because we know it will fail on signing check
+          flutter build ios --release --no-codesign || true
           
+          # Step 2: Manually build the .app using xcodebuild (the only way to truly bypass Team ID check)
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
@@ -47,11 +48,12 @@ workflows:
             PROVISIONING_PROFILE="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
             DEVELOPMENT_TEAM="" \
-            -quiet
+            clean build | xcpretty
             
-          # Move build to artifacts
+          # Step 3: Move the resulting .app to the artifacts location
           cd ..
           mkdir -p build/ios/iphoneos
+          # Find the app in common build locations
           cp -R ios/build/Release-iphoneos/Runner.app build/ios/iphoneos/ 2>/dev/null || \
           cp -R ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Runner.app build/ios/iphoneos/
     artifacts:

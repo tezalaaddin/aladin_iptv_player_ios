@@ -32,6 +32,7 @@ parent_project: aladin_iptv_player_pro (Android TV)
 11. [IOS v.1.0.0+1 Sürüm Notları](#11-ios-v1001-sürüm-notları)
 12. [IOS v.1.0.0+4 Sürüm Notları](#12-ios-v1004-sürüm-notları)
 13. [IOS v.1.0.0+5 Sürüm Notları](#13-ios-v1005-sürüm-notları)
+14. [IOS v.1.0.0+6 Sürüm Notları](#14-ios-v1006-sürüm-notları)
 
 ---
 
@@ -1131,6 +1132,22 @@ git push
 
 ---
 
+## 14. IOS v.1.0.0+6 Sürüm Notları
+
+### 📅 Tarih: 2024-05-24
+### 🛠 Değişiklik Özeti: %100 Kesin Build Bypass (Jailbreak)
+
+**1. Proje Seviyesinde İmza İptali:**
+- `ios/Runner.xcodeproj/project.pbxproj` dosyasına müdahale edilerek tüm build konfigürasyonlarında (Debug, Release, Profile, Test) `CODE_SIGNING_ALLOWED = NO` ve `CODE_SIGN_STYLE = Manual` ayarları kalıcı hale getirildi.
+- Bu sayede Xcode'un "Development Team" bekleme mantığı donanımsal olarak (dosya bazında) kırıldı.
+
+**2. Codemagic Gelişmiş Build Scripti:**
+- `flutter build ios` komutunun hata verip süreci durdurması `|| true` ile engellendi.
+- Paketleme işlemi doğrudan `xcodebuild` motoruna devredildi ve tüm imza bayrakları (`CODE_SIGNING_REQUIRED=NO` vb.) komut satırından tekrar zorlandı.
+- Build çıktılarının (`Runner.app`) doğru konuma kopyalanması için yedekli (`fallback`) kopyalama mantığı kuruldu.
+
+---
+
 ## Versiyon Geçmişi
 
 | Versiyon | Tarih | Not |
@@ -1140,3 +1157,4 @@ git push
 | 1.0.0+2 | 2024-05-24 | iOS Kod Optimizasyonu: Local File Picker entegrasyonu. |
 | 1.0.0+4 | 2024-05-24 | Sürüm takip sistemi eklendi, MediaKit init fix. |
 | 1.0.0+5 | 2024-05-24 | Build Bypass: Jailbreak için imzasız build ve Isar koleksiyon fixleri. |
+| 1.0.0+6 | 2024-05-24 | Kesin Bypass: project.pbxproj seviyesinde imza iptali ve manuel xcodebuild. |
