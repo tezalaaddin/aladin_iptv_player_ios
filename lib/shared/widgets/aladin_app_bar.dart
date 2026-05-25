@@ -29,6 +29,8 @@ class AladinAppBar extends StatelessWidget implements PreferredSizeWidget {
     final s = context.read<AppState>().s;
     final double safePadding = MediaQuery.of(context).size.width * 0.05;
 
+    final canPop = Navigator.canPop(context);
+
     return AppBar(
       backgroundColor: AppTheme.background,
       elevation: 0,
@@ -38,6 +40,14 @@ class AladinAppBar extends StatelessWidget implements PreferredSizeWidget {
         padding: EdgeInsets.symmetric(horizontal: safePadding),
         child: Row(
           children: [
+            if (canPop)
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: _AppBarButton(
+                  icon: Icons.arrow_back_ios_new,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
             // Branded Breadcrumb
             Column(
               mainAxisSize: MainAxisSize.min,

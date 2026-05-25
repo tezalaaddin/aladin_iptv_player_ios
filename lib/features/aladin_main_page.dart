@@ -33,6 +33,7 @@ class _MainPageState extends State<MainPage> {
   final List<FocusNode> _navNodes = List.generate(7, (index) => FocusNode());
   final FocusNode _contentFocusNode = FocusNode();
   bool _epgDialogShown = false;
+  static bool _sessionEpgChecked = false; // Oturum boyu bir kez sor
   DateTime? _lastKeyEventTime;
   
   CategoryModel? _selectedCategory;
@@ -91,8 +92,9 @@ class _MainPageState extends State<MainPage> {
     final epg = AladinEpgEngine.instance;
 
     // 1. EPG Update Check (> 6 days)
-    if (epg.needsUpdate && !_epgDialogShown) {
+    if (epg.needsUpdate && !_epgDialogShown && !_sessionEpgChecked) {
       _epgDialogShown = true;
+      _sessionEpgChecked = true;
       Future.delayed(const Duration(seconds: 3), () => _showUpdateRecommendation('epg'));
     }
     

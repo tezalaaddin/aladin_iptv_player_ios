@@ -40,6 +40,7 @@ class _PlayerPageState extends State<PlayerPage> {
   bool _isLive = false;
   bool _isLoading = true;
   bool _hasError = false;
+  bool _initialized = false;
 
   Timer? _hideTimer;
   Timer? _progressTimer;
@@ -86,8 +87,14 @@ class _PlayerPageState extends State<PlayerPage> {
     _isLive = _detectLive(widget.channel.url);
 
     // media_kit başlat
-    _player = Player();
-    _controller = VideoController(_player);
+    try {
+      _player = Player();
+      _controller = VideoController(_player);
+      _initialized = true;
+    } catch (e) {
+      debugPrint('[PlayerPage] Init error: $e');
+      _hasError = true;
+    }
 
     _setupStreams();
     _playChannel(_playable[_currentIndex]);
@@ -246,7 +253,10 @@ class _PlayerPageState extends State<PlayerPage> {
           child: Stack(
             children: [
               // Video
-              Center(child: Video(controller: _controller)),
+              if (_initialized)
+                Center(child: Video(controller: _controller))
+              else
+                const Center(child: Icon(Icons.videocam_off, color: Colors.white24, size: 64)),
 
               // Yükleniyor
               if (_isLoading)

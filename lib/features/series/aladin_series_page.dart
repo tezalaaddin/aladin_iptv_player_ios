@@ -129,7 +129,7 @@ class _AladinSeriesDetailPageState extends State<AladinSeriesDetailPage> {
     final state = context.watch<AppState>();
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: const AladinAppBar(),
+      appBar: AladinAppBar(title: widget.seriesName),
       body: _loading
           ? const Center(
               child: CircularProgressIndicator(color: AppTheme.accent))

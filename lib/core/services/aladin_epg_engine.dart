@@ -97,8 +97,10 @@ class AladinEpgEngine extends ChangeNotifier {
         await db.writeTxn(() => db.collection<EpgProgramModel>().filter().not().syncSessionEqualTo(syncSessionId).deleteAll());
       }
 
-      await AladinPrefs.instance.setInt(_kSyncKeyMs, DateTime.now().millisecondsSinceEpoch);
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      await AladinPrefs.instance.setInt(_kSyncKeyMs, nowMs);
       await AladinPrefs.instance.setString(_kSyncStatus, 'ok');
+      await AladinPrefs.instance.flush(); // iPad için anında kaydet
       _progress = 1.0;
     } catch (e) {
       debugPrint('[EPG] _doSync error: $e');

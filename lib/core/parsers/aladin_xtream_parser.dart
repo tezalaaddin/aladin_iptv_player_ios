@@ -7,10 +7,10 @@ import '../models/aladin_category_model.dart';
 class AladinXtreamParser {
   final String server, username, password;
   AladinXtreamParser({
-    required this.server,
+    required String server,
     required this.username,
     required this.password,
-  });
+  }) : server = server.endsWith('/') ? server.substring(0, server.length - 1) : server;
 
   String get _base => '$server/player_api.php?username=$username&password=$password';
 
