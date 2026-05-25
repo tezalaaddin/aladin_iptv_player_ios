@@ -14,33 +14,44 @@ workflows:
       - name: Isar Code Gen
         script: |
           flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Build Unsigned IPA
+      - name: Build Unsigned (xcodebuild method)
         script: |
-          # 1. Flutter tarafını derle (AOT ve Frameworkler)
-          # --no-codesign ile imza hatası alsa bile dosyaları üretir
+          # 1. Flutter AOT derlemesi (Dart kodunu makine koduna çevirir)
           flutter build ios --release --no-codesign --verbose || true
-
-          # 2. Framework ve Asset kontrolü/kopyalaması
-          # Flutter build bazen çıktı klasörünü temizleyemeyebiliyor
-          mkdir -p build/ios/iphoneos/Runner.app/Frameworks
           
-          # Engine ve App frameworklerini kopyala
-          cp -R ios/Flutter/App.framework build/ios/iphoneos/Runner.app/Frameworks/ || true
-          cp -R $FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64/Flutter.framework build/ios/iphoneos/Runner.app/Frameworks/ || true
+          # 2. Xcode projesine gir
+          cd ios
           
-          # Plugin frameworklerini (media_kit vb.) kopyala
-          if [ -d "ios/Pods/Target Support Files/Pods-Runner" ]; then
-            find ios/Pods -name "*.framework" -exec cp -R {} build/ios/iphoneos/Runner.app/Frameworks/ \; || true
-          fi
+          # 3. Manuel xcodebuild (İmzalamayı tamamen devre dışı bırakarak paketle)
+          # Bu komut Runner.app dosyasını build/ios/iphoneos altında oluşturur
+          xcodebuild -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            DEVELOPMENT_TEAM="" \
+            clean build | xcpretty
 
-      - name: Verify Artifact
+      - name: Verify and List Artifacts
         script: |
-          if [ -d "build/ios/iphoneos/Runner.app" ]; then
-            echo "Runner.app bulundu. İçerik listeleniyor..."
-            ls -R build/ios/iphoneos/Runner.app | head -n 20
-            du -sh build/ios/iphoneos/Runner.app
+          # Codemagic'in aradığı dizine git
+          cd $CM_BUILD_DIR
+          
+          # Dosya gerçekten var mı kontrol et
+          APP_PATH="build/ios/iphoneos/Runner.app"
+          if [ -d "$APP_PATH" ]; then
+            echo "✅ Runner.app başarıyla oluşturuldu!"
+            du -sh "$APP_PATH"
+            # İçindeki kritik dosyaları listele (Frameworks vb)
+            ls -d "$APP_PATH/Frameworks" || echo "⚠️ Frameworks klasörü yok!"
           else
-            echo "Runner.app BULUNAMADI! Derleme başarısız."
+            echo "❌ Runner.app BULUNAMADI! Derleme loglarını kontrol edin."
+            # Alternatif konumlara bak (DerivedData gibi)
+            find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*"
             exit 1
           fi
     artifacts:
