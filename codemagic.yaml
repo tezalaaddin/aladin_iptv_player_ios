@@ -14,20 +14,17 @@ workflows:
       - name: Isar Code Gen
         script: |
           flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Force Flutter Assembly (Unsigned)
+      - name: Build and Collect Everything
         script: |
-          # 1. Flutter framework'lerini hazırla
-          # Bu komut sadece frameworkleri ve assetleri oluşturur
-          flutter build ios --release --no-codesign --no-bundle || true
+          # 1. Flutter'ı derle (Hata verse de devam et, dosyalar lazım)
+          flutter build ios --release --no-codesign || true
           
-          # 2. Projeyi Xcode ile derle (İmzasız)
+          # 2. Xcode ile ana iskeleti derle
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -sdk iphoneos \
-            OBJROOT=$CM_BUILD_DIR/build/ios/obj \
-            SYMROOT=$CM_BUILD_DIR/build/ios/sym \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -35,31 +32,41 @@ workflows:
             PROVISIONING_PROFILE_SPECIFIER="" \
             DEVELOPMENT_TEAM="" \
             clean build | xcpretty
-            
-      - name: Manual Assembly (The Fix)
-        script: |
-          # Codemagic'in aradığı yere klasörü aç
-          FINAL_APP="$CM_BUILD_DIR/build/ios/iphoneos/Runner.app"
-          mkdir -p "$FINAL_APP"
           
-          # A) Xcode'un ürettiği ana binary dosyasını kopyala
-          SRC_APP=$(find $CM_BUILD_DIR/build/ios/sym -name "Runner.app" | head -n 1)
+          # 3. MANUEL BİRLEŞTİRME (Puzzle'ı tamamla)
+          FINAL_APP="$CM_BUILD_DIR/build/ios/iphoneos/Runner.app"
+          mkdir -p "$FINAL_APP/Frameworks"
+          
+          # Uygulama Binary'sini bul ve koy
+          SRC_APP=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*" | head -n 1)
           cp -a "$SRC_APP/." "$FINAL_APP/"
           
-          # B) Flutter Engine ve App framework'lerini kopyala
-          mkdir -p "$FINAL_APP/Frameworks"
-          cp -R ios/Flutter/App.framework "$FINAL_APP/Frameworks/" || true
-          cp -R $FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64/Flutter.framework "$FINAL_APP/Frameworks/" || true
+          # KRİTİK: App.framework (Uygulamanın asıl kodu buradadır)
+          cp -R "$CM_BUILD_DIR/ios/Flutter/App.framework" "$FINAL_APP/Frameworks/" || true
           
-          # C) Assetleri (Resimler, fontlar vb.) kopyala
-          cp -R build/flutter_assets "$FINAL_APP/" || true
+          # KRİTİK: Flutter.framework (Motor)
+          cp -R "$FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64/Flutter.framework" "$FINAL_APP/Frameworks/" || true
           
-          # D) Plugin framework'lerini (media_kit vb.) topla ve kopyala
-          find $CM_BUILD_DIR/build/ios/sym -name "*.framework" -not -path "*App.framework*" -not -path "*Flutter.framework*" -exec cp -R {} "$FINAL_APP/Frameworks/" \; || true
+          # KRİTİK: Tüm Plugin Frameworkleri (media_kit, isar vb.)
+          # Xcode bunları Build/Products/Release-iphoneos/ altında oluşturur
+          echo "Pluginler aranıyor ve kopyalanıyor..."
+          find ~/Library/Developer/Xcode/DerivedData -name "*.framework" -path "*/Release-iphoneos/*" -exec cp -R {} "$FINAL_APP/Frameworks/" \; || true
           
-          # BOYUT KONTROLÜ
-          echo "Final Paket Boyutu:"
-          du -sh "$FINAL_APP"
+          # Assetleri (Resimler, Ikonlar) kopyala
+          cp -R "$CM_BUILD_DIR/build/flutter_assets" "$FINAL_APP/" || true
+          
+          # Gereksiz dosyaları temizle (Boyut optimizasyonu)
+          rm -rf "$FINAL_APP/_CodeSignature" || true
+
+      - name: Final Integrity Check
+        script: |
+          APP_PATH="build/ios/iphoneos/Runner.app"
+          echo "--- PAKET İÇERİĞİ ---"
+          ls "$APP_PATH"
+          echo "--- FRAMEWORKS İÇERİĞİ ---"
+          ls "$APP_PATH/Frameworks"
+          echo "--- BOYUT ---"
+          du -sh "$APP_PATH"
 
     artifacts:
       - build/ios/iphoneos/Runner.app
