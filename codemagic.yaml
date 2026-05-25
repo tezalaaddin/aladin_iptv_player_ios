@@ -14,21 +14,20 @@ workflows:
       - name: Isar Code Gen
         script: |
           flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Build Unsigned (xcodebuild method)
+      - name: Force Flutter Assembly (Unsigned)
         script: |
-          # 1. Flutter AOT derlemesi
-          flutter build ios --release --no-codesign || true
+          # 1. Flutter framework'lerini hazırla
+          # Bu komut sadece frameworkleri ve assetleri oluşturur
+          flutter build ios --release --no-codesign --no-bundle || true
           
-          # 2. Çıktı klasörünü önceden hazırla
-          mkdir -p $CM_BUILD_DIR/build/ios/iphoneos
-          
-          # 3. Manuel xcodebuild (Çıktı yolunu zorlayarak)
+          # 2. Projeyi Xcode ile derle (İmzasız)
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -sdk iphoneos \
-            CONFIGURATION_BUILD_DIR=$CM_BUILD_DIR/build/ios/iphoneos \
+            OBJROOT=$CM_BUILD_DIR/build/ios/obj \
+            SYMROOT=$CM_BUILD_DIR/build/ios/sym \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -36,29 +35,32 @@ workflows:
             PROVISIONING_PROFILE_SPECIFIER="" \
             DEVELOPMENT_TEAM="" \
             clean build | xcpretty
-
-      - name: Export and Verify Artifacts
+            
+      - name: Manual Assembly (The Fix)
         script: |
-          cd $CM_BUILD_DIR
+          # Codemagic'in aradığı yere klasörü aç
+          FINAL_APP="$CM_BUILD_DIR/build/ios/iphoneos/Runner.app"
+          mkdir -p "$FINAL_APP"
           
-          # Eğer xcodebuild çıktıyı CONFIGURATION_BUILD_DIR'e koymadıysa, DerivedData'dan bul ve çek
-          if [ ! -d "build/ios/iphoneos/Runner.app" ]; then
-            echo "⚠️ Runner.app hedef klasörde yok, DerivedData taranıyor..."
-            FOUND_APP=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*" | head -n 1)
-            if [ -n "$FOUND_APP" ]; then
-              echo "✅ Uygulama bulundu: $FOUND_APP"
-              cp -R "$FOUND_APP" build/ios/iphoneos/
-            fi
-          fi
+          # A) Xcode'un ürettiği ana binary dosyasını kopyala
+          SRC_APP=$(find $CM_BUILD_DIR/build/ios/sym -name "Runner.app" | head -n 1)
+          cp -a "$SRC_APP/." "$FINAL_APP/"
           
-          # Son kontrol
-          if [ -d "build/ios/iphoneos/Runner.app" ]; then
-            echo "🚀 Final Kontrol: Runner.app Hazır!"
-            du -sh build/ios/iphoneos/Runner.app
-          else
-            echo "❌ HATA: Runner.app hiçbir yerde bulunamadı!"
-            exit 1
-          fi
+          # B) Flutter Engine ve App framework'lerini kopyala
+          mkdir -p "$FINAL_APP/Frameworks"
+          cp -R ios/Flutter/App.framework "$FINAL_APP/Frameworks/" || true
+          cp -R $FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64/Flutter.framework "$FINAL_APP/Frameworks/" || true
+          
+          # C) Assetleri (Resimler, fontlar vb.) kopyala
+          cp -R build/flutter_assets "$FINAL_APP/" || true
+          
+          # D) Plugin framework'lerini (media_kit vb.) topla ve kopyala
+          find $CM_BUILD_DIR/build/ios/sym -name "*.framework" -not -path "*App.framework*" -not -path "*Flutter.framework*" -exec cp -R {} "$FINAL_APP/Frameworks/" \; || true
+          
+          # BOYUT KONTROLÜ
+          echo "Final Paket Boyutu:"
+          du -sh "$FINAL_APP"
+
     artifacts:
       - build/ios/iphoneos/Runner.app
     publishing:
