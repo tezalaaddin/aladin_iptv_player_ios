@@ -931,7 +931,7 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 4),
             Text('${s.version} ${_packageInfo?.version} (${_packageInfo?.buildNumber})', style: const TextStyle(color: Colors.white70, fontSize: 13)),
             const SizedBox(height: 4),
-            const Text('Manifest Build: 4', style: TextStyle(color: AppTheme.accent, fontSize: 12, fontWeight: FontWeight.bold)),
+            const Text('Manifest Build: 6', style: TextStyle(color: AppTheme.accent, fontSize: 12, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             Text(s.developer, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
             const SizedBox(height: 20),

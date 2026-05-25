@@ -9,41 +9,41 @@ workflows:
     scripts:
       - name: Flutter Dependencies
         script: |
-          flutter pub get
           flutter precache --ios
+          flutter pub get
       - name: Isar Code Gen
         script: flutter pub run build_runner build --delete-conflicting-outputs
       - name: Initialize iOS Architecture
         script: |
-          # Windows-macOS senkronizasyonu için taze mimari kur
+          # Projeyi iOS için hazırla ama Podfile'ı korumaya çalış
           flutter create --platforms=ios .
-          cp $FLUTTER_ROOT/packages/flutter_tools/bin/podhelper.rb ios/Flutter/ || true
-      - name: Prepare Flutter Frameworks (AOT)
+      - name: Prepare Flutter Frameworks
         script: |
-          # Bu adım imza hatası verebilir, kasten '|| true' ile geçiyoruz.
-          # Amacımız 'ios/Flutter/ephemeral' klasörünü ve Dart kodunu derlemek.
-          flutter build ios --release --no-codesign --extra-gen-snapshot-options=--no-use-integer-division || true
+          # Ephemeral klasörünü ve AOT snapshot'ları oluştur
+          # Bu adımın başarısız olması normaldir (imza yüzünden), ama dosyalar oluşur
+          flutter build ios --release --no-codesign || true
       - name: Configure Unsigned Build
         script: |
-          # İmza bypass XCConfig dosyalarına enjekte et
+          # İmza bypass ayarlarını XCConfig dosyalarına enjekte et
           echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGNING_IDENTITY=" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
           echo "PROVISIONING_PROFILE=" >> ios/Flutter/Release.xcconfig
           echo "PROVISIONING_PROFILE_SPECIFIER=" >> ios/Flutter/Release.xcconfig
           echo "DEVELOPMENT_TEAM=" >> ios/Flutter/Release.xcconfig
+          
+          # Podfile'ın doğru çalıştığından emin olmak için yerel kopyayı kaldır
+          # Çünkü Podfile artık doğrudan SDK'daki podhelper'ı kullanıyor.
+          rm -f ios/Flutter/podhelper.rb
       - name: Install Pods
         script: |
-          # Framework hatasını aşmak için Flutter motorunu projenin içine zorla kopyala
-          mkdir -p ios/Flutter/engine
-          cp -R $FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework ios/Flutter/engine/ || true
-          
+          # CocoaPods kurulumu
           cd ios
           pod install
       - name: Build Unsigned Release (xcodebuild)
         script: |
           cd ios
-          # Xcode'un en saf build komutu ile paketi üret
+          # Temiz bir build al
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
@@ -58,7 +58,8 @@ workflows:
       - name: Export Artifacts
         script: |
           mkdir -p build/ios/iphoneos
-          cp -R ios/build/Release-iphoneos/Runner.app build/ios/iphoneos/ 2>/dev/null || \
-          cp -R ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Runner.app build/ios/iphoneos/
+          # Üretilen Runner.app dosyasını bul ve kopyala
+          find ios/build/Release-iphoneos -name "Runner.app" -exec cp -R {} build/ios/iphoneos/ \; 2>/dev/null || \
+          find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*" -exec cp -R {} build/ios/iphoneos/ \;
     artifacts:
       - build/ios/iphoneos/Runner.app
