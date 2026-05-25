@@ -198,7 +198,7 @@ class _Splash extends StatelessWidget {
                   borderRadius: BorderRadius.circular(22),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.accent.withValues(alpha: 0.45),
+                      color: AppTheme.accent.withOpacity(0.45),
                       blurRadius: 15,
                       spreadRadius: 2,
                     ),
@@ -270,7 +270,7 @@ class _LangSelect extends StatelessWidget {
                 height: 300,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppTheme.accent.withValues(alpha: 0.05),
+                  color: AppTheme.accent.withOpacity(0.05),
                 ),
               ),
             ),
@@ -287,7 +287,7 @@ class _LangSelect extends StatelessWidget {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.accent.withValues(alpha: 0.2),
+                            color: AppTheme.accent.withOpacity(0.2),
                             blurRadius: 40,
                             spreadRadius: 5,
                           ),
@@ -436,7 +436,7 @@ class _LangBtnState extends State<_LangBtn> with SingleTickerProviderStateMixin 
               boxShadow: _focused
                   ? [
                       BoxShadow(
-                        color: Colors.white.withValues(alpha: 0.3),
+                        color: Colors.white.withOpacity(0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       )
