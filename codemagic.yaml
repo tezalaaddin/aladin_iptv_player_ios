@@ -14,29 +14,38 @@ workflows:
       - name: Isar Code Gen
         script: |
           flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Build Unsigned Release (Flutter)
+      - name: Build Unsigned IPA
         script: |
-          # ÖNEMLİ: flutter create ÇALIŞTIRMA (Ayarlarımızı bozar)
-          # Doğrudan flutter build kullan, imza hatasını görmezden gel
+          # 1. Flutter tarafını derle (AOT ve Frameworkler)
+          # --no-codesign ile imza hatası alsa bile dosyaları üretir
           flutter build ios --release --no-codesign --verbose || true
-      - name: Embed Frameworks Manually (Fallback)
-        script: |
-          # Eğer flutter build ios --no-codesign frameworkleri kopyalamadıysa zorla kopyala
-          APP_DIR="build/ios/iphoneos/Runner.app"
-          if [ -d "$APP_DIR" ]; then
-            mkdir -p "$APP_DIR/Frameworks"
-            cp -R ios/Flutter/App.framework "$APP_DIR/Frameworks/" 2>/dev/null || true
-            cp -R $FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64/Flutter.framework "$APP_DIR/Frameworks/" 2>/dev/null || true
-            
-            # Assetleri kontrol et
-            if [ ! -d "$APP_DIR/Frameworks/App.framework/flutter_assets" ]; then
-               cp -R build/flutter_assets "$APP_DIR/" 2>/dev/null || true
-            fi
+
+          # 2. Framework ve Asset kontrolü/kopyalaması
+          # Flutter build bazen çıktı klasörünü temizleyemeyebiliyor
+          mkdir -p build/ios/iphoneos/Runner.app/Frameworks
+          
+          # Engine ve App frameworklerini kopyala
+          cp -R ios/Flutter/App.framework build/ios/iphoneos/Runner.app/Frameworks/ || true
+          cp -R $FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64/Flutter.framework build/ios/iphoneos/Runner.app/Frameworks/ || true
+          
+          # Plugin frameworklerini (media_kit vb.) kopyala
+          if [ -d "ios/Pods/Target Support Files/Pods-Runner" ]; then
+            find ios/Pods -name "*.framework" -exec cp -R {} build/ios/iphoneos/Runner.app/Frameworks/ \; || true
           fi
-      - name: List Build Result
+
+      - name: Verify Artifact
         script: |
-          echo "Build dizini içeriği:"
-          ls -R build/ios/iphoneos/Runner.app || echo "Runner.app bulunamadı!"
-          du -sh build/ios/iphoneos/Runner.app || echo "Boyut ölçülemedi"
+          if [ -d "build/ios/iphoneos/Runner.app" ]; then
+            echo "Runner.app bulundu. İçerik listeleniyor..."
+            ls -R build/ios/iphoneos/Runner.app | head -n 20
+            du -sh build/ios/iphoneos/Runner.app
+          else
+            echo "Runner.app BULUNAMADI! Derleme başarısız."
+            exit 1
+          fi
     artifacts:
       - build/ios/iphoneos/Runner.app
+    publishing:
+      email:
+        recipients:
+          - tuz.alaaddin@gmail.com
