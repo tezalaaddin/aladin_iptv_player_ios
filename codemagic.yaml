@@ -16,18 +16,19 @@ workflows:
           flutter pub run build_runner build --delete-conflicting-outputs
       - name: Build Unsigned (xcodebuild method)
         script: |
-          # 1. Flutter AOT derlemesi (Dart kodunu makine koduna çevirir)
-          flutter build ios --release --no-codesign --verbose || true
+          # 1. Flutter AOT derlemesi
+          flutter build ios --release --no-codesign || true
           
-          # 2. Xcode projesine gir
+          # 2. Çıktı klasörünü önceden hazırla
+          mkdir -p $CM_BUILD_DIR/build/ios/iphoneos
+          
+          # 3. Manuel xcodebuild (Çıktı yolunu zorlayarak)
           cd ios
-          
-          # 3. Manuel xcodebuild (İmzalamayı tamamen devre dışı bırakarak paketle)
-          # Bu komut Runner.app dosyasını build/ios/iphoneos altında oluşturur
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -sdk iphoneos \
+            CONFIGURATION_BUILD_DIR=$CM_BUILD_DIR/build/ios/iphoneos \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -36,22 +37,26 @@ workflows:
             DEVELOPMENT_TEAM="" \
             clean build | xcpretty
 
-      - name: Verify and List Artifacts
+      - name: Export and Verify Artifacts
         script: |
-          # Codemagic'in aradığı dizine git
           cd $CM_BUILD_DIR
           
-          # Dosya gerçekten var mı kontrol et
-          APP_PATH="build/ios/iphoneos/Runner.app"
-          if [ -d "$APP_PATH" ]; then
-            echo "✅ Runner.app başarıyla oluşturuldu!"
-            du -sh "$APP_PATH"
-            # İçindeki kritik dosyaları listele (Frameworks vb)
-            ls -d "$APP_PATH/Frameworks" || echo "⚠️ Frameworks klasörü yok!"
+          # Eğer xcodebuild çıktıyı CONFIGURATION_BUILD_DIR'e koymadıysa, DerivedData'dan bul ve çek
+          if [ ! -d "build/ios/iphoneos/Runner.app" ]; then
+            echo "⚠️ Runner.app hedef klasörde yok, DerivedData taranıyor..."
+            FOUND_APP=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*" | head -n 1)
+            if [ -n "$FOUND_APP" ]; then
+              echo "✅ Uygulama bulundu: $FOUND_APP"
+              cp -R "$FOUND_APP" build/ios/iphoneos/
+            fi
+          fi
+          
+          # Son kontrol
+          if [ -d "build/ios/iphoneos/Runner.app" ]; then
+            echo "🚀 Final Kontrol: Runner.app Hazır!"
+            du -sh build/ios/iphoneos/Runner.app
           else
-            echo "❌ Runner.app BULUNAMADI! Derleme loglarını kontrol edin."
-            # Alternatif konumlara bak (DerivedData gibi)
-            find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*"
+            echo "❌ HATA: Runner.app hiçbir yerde bulunamadı!"
             exit 1
           fi
     artifacts:
