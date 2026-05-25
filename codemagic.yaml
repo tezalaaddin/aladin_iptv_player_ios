@@ -7,27 +7,25 @@ workflows:
       flutter: stable
       xcode: latest
     scripts:
-      - name: Initialize Environment
+      - name: Flutter Dependencies
         script: |
-          # Flutter motorunu ve iOS bağımlılıklarını önceden indir
-          flutter precache --ios
           flutter pub get
-      - name: Isar code gen
+          flutter precache --ios
+      - name: Isar Code Gen
         script: flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Setup iOS Project Architecture
+      - name: Initialize iOS Architecture
         script: |
-          # Windows-macOS uyumsuzluğunu gidermek için iOS mimarisini tazeleyelim
+          # Windows-macOS senkronizasyonu için taze mimari kur
           flutter create --platforms=ios .
-          # Eksik podhelper.rb dosyasını kopyala
           cp $FLUTTER_ROOT/packages/flutter_tools/bin/podhelper.rb ios/Flutter/ || true
-      - name: Prepare Flutter Frameworks
+      - name: Prepare Flutter Frameworks (AOT)
         script: |
-          # Pod kurulumu öncesi Flutter motorunun yerleşmesi için build'i tetikle
-          # Bu komut imza hatası verir ama Flutter.xcframework'ü oluşturur
+          # Bu adım imza hatası verebilir, kasten '|| true' ile geçiyoruz.
+          # Amacımız 'ios/Flutter/ephemeral' klasörünü ve Dart kodunu derlemek.
           flutter build ios --release --no-codesign --extra-gen-snapshot-options=--no-use-integer-division || true
       - name: Configure Unsigned Build
         script: |
-          # XCConfig dosyalarına imza bypass ayarlarını enjekte et
+          # İmza bypass XCConfig dosyalarına enjekte et
           echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_IDENTITY=" >> ios/Flutter/Release.xcconfig
@@ -36,14 +34,16 @@ workflows:
           echo "DEVELOPMENT_TEAM=" >> ios/Flutter/Release.xcconfig
       - name: Install Pods
         script: |
+          # Framework hatasını aşmak için Flutter motorunu projenin içine zorla kopyala
+          mkdir -p ios/Flutter/engine
+          cp -R $FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework ios/Flutter/engine/ || true
+          
           cd ios
-          # Temiz kurulum
-          rm -rf Pods Podfile.lock
           pod install
       - name: Build Unsigned Release (xcodebuild)
         script: |
           cd ios
-          # Flutter'ın kısıtlamalarını aşmak için doğrudan xcodebuild kullanıyoruz
+          # Xcode'un en saf build komutu ile paketi üret
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
@@ -57,7 +57,6 @@ workflows:
             clean build | xcpretty
       - name: Export Artifacts
         script: |
-          # Build sonucunu doğru klasöre taşıyalım
           mkdir -p build/ios/iphoneos
           cp -R ios/build/Release-iphoneos/Runner.app build/ios/iphoneos/ 2>/dev/null || \
           cp -R ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Runner.app build/ios/iphoneos/
