@@ -41,7 +41,7 @@ Future<void> main() async {
     debugPrint('┌─ AladinError $prefix ──────────────────────────');
     debugPrint('│ ${details.exception}');
     debugPrint('│ ${details.context ?? "no context"}');
-    if (!kReleaseMode) debugPrint('│ ${details.stack}');
+    if (!foundation.kReleaseMode) debugPrint('│ ${details.stack}');
     debugPrint('└────────────────────────────────────────────────');
 
     // ── Release: TV'ye yakışır minimal hata arayüzü ───────────────────────

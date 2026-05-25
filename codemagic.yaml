@@ -14,13 +14,13 @@ workflows:
       - name: Isar Code Gen
         script: |
           flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Hardcore Unsigned Build (Build 15)
+      - name: Hardcore Unsigned Build (Build 16)
         script: |
           # 1. Flutter AOT ve Assets üretimi
-          flutter build ios --release --no-codesign || true
+          # KOD HATASI VARSA BURADA DURUR
+          flutter build ios --release --no-codesign
           
           # 2. Xcode Manuel Derleme (Ad-hoc imzayı zorlayarak)
-          # Bu yöntem 'ad-hoc' imza kullanarak binary'nin üretilmesini sağlar.
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
@@ -43,20 +43,20 @@ workflows:
           rm -rf "$FINAL_APP"
           mkdir -p "$FINAL_APP/Frameworks"
           
-          # A) Üretilen ana binary dosyasını bul (DerivedData içinde her yere bak)
+          # A) Üretilen ana binary dosyasını bul
           echo "Runner binary aranıyor..."
           RUNNER_BIN=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner" -type f -path "*/Release-iphoneos/*" | xargs ls -t | head -n 1)
           if [ -n "$RUNNER_BIN" ]; then
             echo "✅ Runner bulundu: $RUNNER_BIN"
             cp "$RUNNER_BIN" "$FINAL_APP/"
           else
-            echo "❌ Runner binary YİNE BULUNAMADI!"
+            echo "❌ Runner binary BULUNAMADI! Derleme loglarını (Xcode output) kontrol edin."
             exit 1
           fi
           
           # B) Info.plist'i bul ve koy
           PLIST_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Info.plist" -path "*/Release-iphoneos/Runner.app/*" | head -n 1)
-          cp "$PLIST_PATH" "$FINAL_APP/" || echo "⚠️ Info.plist bulunamadı, iskeletten kopyalanıyor..."
+          cp "$PLIST_PATH" "$FINAL_APP/" || echo "⚠️ Info.plist bulunamadı."
           
           # C) App.framework ve Flutter.framework enjeksiyonu
           cp -R "$CM_BUILD_DIR/ios/Flutter/App.framework" "$FINAL_APP/Frameworks/" || true
@@ -69,7 +69,7 @@ workflows:
           # E) Flutter Assetlerini yerleştir
           cp -R "$CM_BUILD_DIR/build/flutter_assets/." "$FINAL_APP/" || true
           
-          # F) PkgInfo oluştur (iOS için şart)
+          # F) PkgInfo oluştur
           echo "APPL????" > "$FINAL_APP/PkgInfo"
 
       - name: Final Verification
