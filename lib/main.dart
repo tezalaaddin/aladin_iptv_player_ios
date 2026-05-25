@@ -19,12 +19,6 @@ Future<void> main() async {
   MediaKit.ensureInitialized();
 
   ErrorWidget.builder = (FlutterErrorDetails details) {
-    final msg = details.exception.toString();
-    final silentPatterns = ['blur radius', 'blurRadius', 'RenderFlex overflowed'];
-    if (silentPatterns.any(msg.contains)) {
-      return const SizedBox.shrink();
-    }
-
     if (foundation.kReleaseMode) {
       return Container(
         decoration: BoxDecoration(
@@ -39,10 +33,7 @@ Future<void> main() async {
           children: [
             Icon(Icons.warning_amber_rounded, color: Colors.white38, size: 28),
             SizedBox(height: 6),
-            Text(
-              'Görüntülenemiyor',
-              style: TextStyle(color: Colors.white38, fontSize: 11),
-            ),
+            Text('Görüntülenemiyor', style: TextStyle(color: Colors.white38, fontSize: 11)),
           ],
         ),
       );
@@ -55,9 +46,6 @@ Future<void> main() async {
     statusBarIconBrightness: Brightness.light,
   ));
 
-  PaintingBinding.instance.imageCache.maximumSize = 50;
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 50 << 20;
-
   runApp(const AladinApp());
 }
 
@@ -67,8 +55,7 @@ class AladinApp extends StatefulWidget {
   State<AladinApp> createState() => _AladinAppState();
 }
 
-class _AladinAppState extends State<AladinApp>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+class _AladinAppState extends State<AladinApp> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   int _phase = 0; 
   late AnimationController _animCtrl;
   late Animation<double> _fade;
@@ -77,37 +64,22 @@ class _AladinAppState extends State<AladinApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _animCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 900));
+    _animCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
     _fade = CurvedAnimation(parent: _animCtrl, curve: Curves.easeIn);
     _animCtrl.forward();
     _boot();
   }
 
   @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _animCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
-      AladinPrefs.instance.flush();
-    }
-  }
+  void dispose() { WidgetsBinding.instance.removeObserver(this); _animCtrl.dispose(); super.dispose(); }
 
   Future<void> _boot() async {
     await AladinPrefs.instance.load();
     await initDI();
-    await Future.wait([
-      IsarService.instance.init(),
-      AppState.instance.init(),
-    ]);
+    await Future.wait([IsarService.instance.init(), AppState.instance.init()]);
     await AppState.instance.loadPlaylists();
-    final hasLang = AladinPrefs.instance.getString('lang') != null;
     if (!mounted) return;
+    final hasLang = AladinPrefs.instance.getString('lang') != null;
     await Future.delayed(const Duration(milliseconds: 1000));
     if (!mounted) return;
     setState(() => _phase = hasLang ? 2 : 1);
@@ -127,7 +99,7 @@ class _AladinAppState extends State<AladinApp>
         ChangeNotifierProvider.value(value: AladinEpgEngine.instance),
       ],
       child: MaterialApp(
-        title: 'Aladin Media Player Pro TV',
+        title: 'Aladin IPTV',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
         home: FocusScope(
@@ -149,7 +121,6 @@ class _AladinAppState extends State<AladinApp>
 class _Splash extends StatelessWidget {
   final Animation<double> fade;
   const _Splash({required this.fade});
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -161,44 +132,16 @@ class _Splash extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 90,
-                height: 90,
+                width: 90, height: 90,
                 decoration: BoxDecoration(
                   color: AppTheme.accent,
                   borderRadius: BorderRadius.circular(22),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.accent.withOpacity(0.45),
-                      blurRadius: 15,
-                      spreadRadius: 2,
-                    ),
-                  ],
+                  boxShadow: [BoxShadow(color: AppTheme.accent.withOpacity(0.45), blurRadius: 15, spreadRadius: 2)],
                 ),
                 child: const Icon(Icons.live_tv, color: Colors.white, size: 52),
               ),
               const SizedBox(height: 26),
-              const Column(
-                children: [
-                  Text(
-                    'Aladin Media Player Pro',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  Text(
-                    'FOR SMART TV',
-                    style: TextStyle(
-                      color: AppTheme.accent,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2.0,
-                    ),
-                  ),
-                ],
-              ),
+              const Text('Aladin Media Player Pro', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
             ],
           ),
         ),
@@ -210,91 +153,19 @@ class _Splash extends StatelessWidget {
 class _LangSelect extends StatelessWidget {
   final void Function(String) onSelect;
   const _LangSelect({required this.onSelect});
-
   @override
   Widget build(BuildContext context) {
     final langs = AppStrings.getLanguageNames();
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF1A1A1A), Color(0xFF000000), Color(0xFF0A0A0A)],
-            stops: [0.0, 0.5, 1.0],
-          ),
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              right: -100,
-              top: -100,
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppTheme.accent.withOpacity(0.05),
-                ),
-              ),
-            ),
-            Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 32),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.accent.withOpacity(0.2),
-                            blurRadius: 40,
-                            spreadRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(Icons.live_tv, color: AppTheme.accent, size: 84),
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Aladin Media Player Pro',
-                      style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 0.8),
-                    ),
-                    const Text(
-                      'PREMIUM SMART TV EXPERIENCE',
-                      style: TextStyle(color: AppTheme.accent, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 3.0),
-                    ),
-                    const SizedBox(height: 48),
-                    const Text(
-                      'Select Language / Dil Seçiniz',
-                      style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w500),
-                    ),
-                    const SizedBox(height: 32),
-                    SizedBox(
-                      width: 800,
-                      child: Wrap(
-                        spacing: 20,
-                        runSpacing: 20,
-                        alignment: WrapAlignment.center,
-                        children: langs.entries.map((e) {
-                          final parts = e.value.split(' ');
-                          return _LangBtn(
-                            flag: parts[0],
-                            label: parts.skip(1).join(' '),
-                            autofocus: e.key == 'en',
-                            onTap: () => onSelect(e.key),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+      body: Center(
+        child: Wrap(
+          spacing: 20, runSpacing: 20,
+          children: langs.entries.map((e) => _LangBtn(
+            flag: e.value.split(' ')[0],
+            label: e.value.split(' ').skip(1).join(' '),
+            autofocus: e.key == 'en',
+            onTap: () => onSelect(e.key),
+          )).toList(),
         ),
       ),
     );
@@ -312,31 +183,23 @@ class _LangBtn extends StatefulWidget {
 
 class _LangBtnState extends State<_LangBtn> with SingleTickerProviderStateMixin {
   bool _focused = false;
-  late AnimationController _scaleCtrl;
+  late AnimationController _ctrl;
   late Animation<double> _scale;
-
   @override
   void initState() {
     super.initState();
-    _scaleCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
-    _scale = Tween<double>(begin: 1.0, end: 1.08).animate(CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeOut));
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
+    _scale = Tween<double>(begin: 1.0, end: 1.08).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
   }
-
   @override
-  void dispose() { _scaleCtrl.dispose(); super.dispose(); }
-
-  void _onFocus(bool v) {
-    setState(() => _focused = v);
-    if (v) _scaleCtrl.forward(); else _scaleCtrl.reverse();
-  }
-
+  void dispose() { _ctrl.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) {
     return Focus(
       autofocus: widget.autofocus,
-      onFocusChange: _onFocus,
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent && (event.logicalKey == LogicalKeyboardKey.select || event.logicalKey == LogicalKeyboardKey.enter)) {
+      onFocusChange: (v) { setState(() => _focused = v); if (v) _ctrl.forward(); else _ctrl.reverse(); },
+      onKeyEvent: (n, e) {
+        if (e is KeyDownEvent && (e.logicalKey == LogicalKeyboardKey.select || e.logicalKey == LogicalKeyboardKey.enter)) {
           widget.onTap(); return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
@@ -345,24 +208,13 @@ class _LangBtnState extends State<_LangBtn> with SingleTickerProviderStateMixin 
         onTap: widget.onTap,
         child: ScaleTransition(
           scale: _scale,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: 240,
-            height: 72,
+          child: Container(
+            width: 240, height: 72,
             decoration: BoxDecoration(
               color: _focused ? Colors.white : Colors.white.withOpacity(0.08),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _focused ? Colors.white : Colors.white24, width: _focused ? 0 : 1),
-              boxShadow: _focused ? [BoxShadow(color: Colors.white.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))] : [],
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(widget.flag, style: const TextStyle(fontSize: 28)),
-                const SizedBox(width: 14),
-                Text(widget.label, style: TextStyle(color: _focused ? Colors.black : Colors.white, fontSize: 18, fontWeight: _focused ? FontWeight.w800 : FontWeight.w600)),
-              ],
-            ),
+            child: Center(child: Text("${widget.flag} ${widget.label}", style: TextStyle(color: _focused ? Colors.black : Colors.white, fontSize: 18))),
           ),
         ),
       ),
