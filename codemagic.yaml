@@ -16,10 +16,11 @@ workflows:
           flutter pub run build_runner build --delete-conflicting-outputs
       - name: Build and Collect Everything
         script: |
-          # 1. Flutter'ı derle (Hata verse de devam et, dosyalar lazım)
+          # 1. Flutter AOT ve Assets üretimi
           flutter build ios --release --no-codesign || true
+          flutter build bundle --release
           
-          # 2. Xcode ile ana iskeleti derle
+          # 2. Xcode Projesini Derle (İmzasız)
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
@@ -33,39 +34,43 @@ workflows:
             DEVELOPMENT_TEAM="" \
             clean build | xcpretty
           
-          # 3. MANUEL BİRLEŞTİRME (Puzzle'ı tamamla)
+          # 3. MANUEL BİRLEŞTİRME (Deep Assembly)
           FINAL_APP="$CM_BUILD_DIR/build/ios/iphoneos/Runner.app"
+          rm -rf "$FINAL_APP"
           mkdir -p "$FINAL_APP/Frameworks"
           
-          # Uygulama Binary'sini bul ve koy
-          SRC_APP=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*" | head -n 1)
-          cp -a "$SRC_APP/." "$FINAL_APP/"
+          # A) Xcode'un ürettiği GERÇEK klasörü bul (En son oluşturulanı al)
+          REAL_APP=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*" | xargs ls -td | head -n 1)
+          echo "Kaynak Uygulama: $REAL_APP"
           
-          # KRİTİK: App.framework (Uygulamanın asıl kodu buradadır)
-          cp -R "$CM_BUILD_DIR/ios/Flutter/App.framework" "$FINAL_APP/Frameworks/" || true
+          # B) Kök dosyaları kopyala (Runner binary, Info.plist, PkgInfo)
+          cp -a "$REAL_APP/." "$FINAL_APP/"
           
-          # KRİTİK: Flutter.framework (Motor)
+          # C) Dart kodunu (App.framework) zorla enjekte et
+          APP_FW=$(find $CM_BUILD_DIR/build/ios/iphoneos -name "App.framework" | head -n 1)
+          if [ -z "$APP_FW" ]; then APP_FW=$(find $CM_BUILD_DIR/ios/Flutter -name "App.framework" | head -n 1); fi
+          echo "App Framework kopyalanıyor: $APP_FW"
+          cp -R "$APP_FW" "$FINAL_APP/Frameworks/" || true
+          
+          # D) Flutter Motorunu kopyala
           cp -R "$FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64/Flutter.framework" "$FINAL_APP/Frameworks/" || true
           
-          # KRİTİK: Tüm Plugin Frameworkleri (media_kit, isar vb.)
-          # Xcode bunları Build/Products/Release-iphoneos/ altında oluşturur
-          echo "Pluginler aranıyor ve kopyalanıyor..."
+          # E) Pluginleri (media_kit, isar vb.) topla
           find ~/Library/Developer/Xcode/DerivedData -name "*.framework" -path "*/Release-iphoneos/*" -exec cp -R {} "$FINAL_APP/Frameworks/" \; || true
           
-          # Assetleri (Resimler, Ikonlar) kopyala
-          cp -R "$CM_BUILD_DIR/build/flutter_assets" "$FINAL_APP/" || true
+          # F) Assetleri (Görseller) yerleştir
+          cp -R "$CM_BUILD_DIR/build/flutter_assets/." "$FINAL_APP/" || true
           
-          # Gereksiz dosyaları temizle (Boyut optimizasyonu)
+          # Temizlik
           rm -rf "$FINAL_APP/_CodeSignature" || true
 
-      - name: Final Integrity Check
+      - name: Integrity Check
         script: |
           APP_PATH="build/ios/iphoneos/Runner.app"
-          echo "--- PAKET İÇERİĞİ ---"
-          ls "$APP_PATH"
-          echo "--- FRAMEWORKS İÇERİĞİ ---"
+          echo "--- KÖK DİZİN ---"
+          ls -F "$APP_PATH"
+          echo "--- FRAMEWORKS ---"
           ls "$APP_PATH/Frameworks"
-          echo "--- BOYUT ---"
           du -sh "$APP_PATH"
 
     artifacts:
