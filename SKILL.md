@@ -31,6 +31,7 @@ parent_project: aladin_iptv_player_pro (Android TV)
 10. [Build ve Deployment](#10-build-ve-deployment)
 11. [IOS v.1.0.0+1 Sürüm Notları](#11-ios-v1001-sürüm-notları)
 12. [IOS v.1.0.0+4 Sürüm Notları](#12-ios-v1004-sürüm-notları)
+13. [IOS v.1.0.0+5 Sürüm Notları](#13-ios-v1005-sürüm-notları)
 
 ---
 
@@ -1109,6 +1110,27 @@ git push
 
 ---
 
+## 13. IOS v.1.0.0+5 Sürüm Notları
+
+### 📅 Tarih: 2024-05-24
+### 🛠 Değişiklik Özeti: Kritik Build Bypass ve Altyapı Stabilizasyonu
+
+**1. Kesin İmza Bypass (Jailbreak Friendly):**
+- `ios/Podfile` dosyasına projenin tüm pod bağımlılıkları için imza kontrollerini otomatik devre dışı bırakan `post_install` bloğu eklendi.
+- `Release.xcconfig` ve `Debug.xcconfig` dosyalarına `CODE_SIGNING_ALLOWED=NO` gibi kritik bayraklar kalıcı olarak işlendi.
+- Bu sayede Codemagic üzerinde Apple Developer Team ID sormadan `.app` paketi üretilmesi sağlandı.
+
+**2. Windows-iOS Migration Fix:**
+- Windows üzerinde geliştirilen projelerde eksik olan macOS-özel build dosyalarının (`podhelper.rb` vb.) eksikliği için Codemagic scriptleri güncellendi.
+- `flutter create --platforms=ios .` komutu build runner üzerinde zorunlu hale getirilerek iOS altyapısının taze üretilmesi sağlandı.
+
+**3. Kod Temizliği ve Uyum:**
+- `MainPage` üzerindeki `defaultTargetPlatform` kontrolü için gereken `foundation.dart` import hatası giderildi.
+- Isar modellerindeki `.g.dart` üretim hatalarını aşmak için servis katmanındaki tüm koleksiyon erişimleri jenerik yapıya (`collection<T>()`) taşındı.
+- Bundle ID, platform standartlarına uygun olarak `com.aladin.iptv.player.ios` şeklinde güncellendi.
+
+---
+
 ## Versiyon Geçmişi
 
 | Versiyon | Tarih | Not |
@@ -1117,3 +1139,4 @@ git push
 | 1.0.0+1 | 2024-05-24 | iOS Player Migrasyonu tamamlandı, ilk iOS build hazırlığı. |
 | 1.0.0+2 | 2024-05-24 | iOS Kod Optimizasyonu: Local File Picker entegrasyonu. |
 | 1.0.0+4 | 2024-05-24 | Sürüm takip sistemi eklendi, MediaKit init fix. |
+| 1.0.0+5 | 2024-05-24 | Build Bypass: Jailbreak için imzasız build ve Isar koleksiyon fixleri. |
