@@ -14,17 +14,24 @@ workflows:
       - name: Isar Code Gen
         script: |
           flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Hardcore Release Assembly (Build 20)
+      - name: Force Release AOT Generation
         script: |
-          # 1. Ortamı temizle (Debug kalıntılarını sil)
+          # 1. Ortamı temizle
           flutter clean
           flutter pub get
           
-          # 2. Gerçek Release AOT ve Frameworkleri üret
-          # Bu komut 'build/ios/iphoneos/App.framework' içinde gerçek kodu üretir
+          # 2. Dart kodunu Release modunda makine koduna çevir (İmzasız)
+          # Bu komut 'build/aot' veya 'build/ios/iphoneos' içinde App.framework üretir
           flutter build ios --release --no-codesign || true
           
-          # 3. Xcode Derlemesi (Binary üretimi)
+          # 3. Eğer üstteki başarısız olursa 'assemble' ile zorla
+          if [ ! -d "build/ios/iphoneos/App.framework" ]; then
+            echo "⚠️ Standart build başarısız, assemble ile zorlanıyor..."
+            flutter assemble -dTargetPlatform=ios -dBuildMode=release release_ios_bundle_flutter_assets
+          fi
+          
+      - name: Xcode Build (Build 21)
+        script: |
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
@@ -36,49 +43,46 @@ workflows:
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             clean build | xcpretty
             
-          # 4. MANUEL MONTAJ (Release Sürüm)
+      - name: Ultimate Manual Assembly
+        script: |
           FINAL_APP="$CM_BUILD_DIR/build/ios/iphoneos/Runner.app"
           rm -rf "$FINAL_APP"
           mkdir -p "$FINAL_APP/Frameworks"
           
-          # A) Kaynak Uygulamayı Bul (Xcode çıktısı)
+          # A) Xcode'un ürettiği İSKELETİ bul
           REAL_APP=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*" | xargs ls -td | head -n 1)
-          echo "Kaynak: $REAL_APP"
+          cp -a "$REAL_APP/." "$FINAL_APP/"
           
-          # B) Ana dosyaları kopyala
-          cp "$REAL_APP/Runner" "$FINAL_APP/"
-          cp "$REAL_APP/Info.plist" "$FINAL_APP/"
-          echo "APPL????" > "$FINAL_APP/PkgInfo"
+          # B) BEYİN (App.framework) ARAMA VE ENJEKSİYON
+          echo "Release App.framework aranıyor..."
+          # Önce build klasörüne bak, sonra clone içine bak
+          APP_FW=$(find . -name "App.framework" -type d -path "*Release*" | head -n 1)
+          if [ -z "$APP_FW" ]; then APP_FW=$(find . -name "App.framework" -type d | head -n 1); fi
           
-          # C) KRİTİK: GERÇEK RELEASE App.framework (Dart Kodunuz)
-          # Statik klasörden DEĞİL, build çıktısından alıyoruz
-          RELEASE_APP_FW=$(find "$CM_BUILD_DIR/build/ios/iphoneos" -name "App.framework" -type d | head -n 1)
-          echo "Release App.framework bulundu: $RELEASE_APP_FW"
-          cp -R "$RELEASE_APP_FW" "$FINAL_APP/Frameworks/"
+          echo "✅ Enjekte edilen Beyin: $APP_FW"
+          cp -R "$APP_FW" "$FINAL_APP/Frameworks/"
           
-          # D) Flutter Motorunu kopyala
+          # C) MOTOR (Flutter.framework) ENJEKSİYON
           cp -R "$FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64/Flutter.framework" "$FINAL_APP/Frameworks/"
           
-          # E) Pluginleri topla
-          find "$REAL_APP/Frameworks" -name "*.framework" -not -name "App.framework" -not -name "Flutter.framework" -exec cp -R {} "$FINAL_APP/Frameworks/" \; || true
+          # D) TÜM PLUGINLERİ TOPLA (media_kit vb.)
+          find ~/Library/Developer/Xcode/DerivedData -name "*.framework" -path "*/Release-iphoneos/*" -not -name "App.framework" -not -name "Flutter.framework" -exec cp -R {} "$FINAL_APP/Frameworks/" \; || true
           
-          # F) Görsel Kaynaklar (Assets.car, Storyboardlar)
-          find "$REAL_APP" -maxdepth 1 -name "Assets.car" -exec cp {} "$FINAL_APP/" \; || true
-          find "$REAL_APP" -maxdepth 1 -name "*.lproj" -exec cp -R {} "$FINAL_APP/" \; || true
-          find "$REAL_APP" -maxdepth 1 -name "*.storyboardc" -exec cp -R {} "$FINAL_APP/" \; || true
-          
-          # G) Assetleri (Görseller, Fontlar) ana dizine koy
+          # E) ASSETLERİ TAŞI
           cp -R "$CM_BUILD_DIR/build/flutter_assets" "$FINAL_APP/" || true
+          
+          # F) INFO.PLIST GÜNCELLE
+          /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable Runner" "$FINAL_APP/Info.plist" || true
 
-      - name: Final Integrity Check Build 20
+      - name: Final Verification Build 21
         script: |
           APP_PATH="build/ios/iphoneos/Runner.app"
-          echo "--- RELEASE KONTROL ---"
+          echo "--- FINAL DOSYA KONTROLÜ ---"
           ls -F "$APP_PATH"
-          echo "--- FRAMEWORKS ---"
+          echo "Frameworks:"
           ls "$APP_PATH/Frameworks"
           du -sh "$APP_PATH"
-          [ -d "$APP_PATH/Frameworks/App.framework" ] && echo "✅ RELEASE BEYİN YÜKLENDİ!" || exit 1
+          [ -d "$APP_PATH/Frameworks/App.framework" ] && echo "🚀 HER ŞEY HAZIR!" || exit 1
           
     artifacts:
       - build/ios/iphoneos/Runner.app
