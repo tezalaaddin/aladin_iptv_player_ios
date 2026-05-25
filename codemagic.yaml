@@ -1,6 +1,6 @@
 workflows:
   ios-release:
-    name: iOS Release Build (Unsigned)
+    name: iOS Release Build (Jailbreak Unsigned)
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
@@ -11,18 +11,23 @@ workflows:
         script: flutter pub get
       - name: Isar code gen
         script: flutter pub run build_runner build --delete-conflicting-outputs
+      - name: Disable Swift Package Manager (Force Pods)
+        script: flutter config --no-native-assets
       - name: Install Pods
         script: |
           cd ios
           rm -rf Pods
           rm -rf Podfile.lock
           pod install
-      - name: Build iOS (Force Unsigned)
+      - name: Build Unsigned Release
         script: |
-          flutter build ios --release --no-codesign --extra-gen-snapshot-options=--no-use-integer-division
+          # 1. Önce Flutter'ın Dart kodunu (AOT) ve asset'leri hazırlamasını sağlayalım.
+          # Bu komut imza hatası verse bile gerekli dosyaları (App.framework vb.) oluşturur.
+          flutter build ios --release --no-codesign || true
           
-          # Manuel Archive (Eğer üstteki hata verirse bu yöntem daha garantidir)
-          xcodebuild -workspace ios/Runner.xcworkspace \
+          # 2. Şimdi gerçek Xcode build işlemini imza kontrollerini bypass ederek başlatalım.
+          cd ios
+          xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -sdk iphoneos \
@@ -30,7 +35,12 @@ workflows:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             PROVISIONING_PROFILE="" \
-            | xcpretty
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            -quiet
+            
+          # 3. Build klasörünü Codemagic'in göreceği yere taşıyalım
+          cd ..
+          mkdir -p build/ios/iphoneos
+          cp -R ios/build/Release-iphoneos/Runner.app build/ios/iphoneos/ 2>/dev/null || cp -R ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Runner.app build/ios/iphoneos/
     artifacts:
       - build/ios/iphoneos/Runner.app
-      - build/ios/ipa/*.ipa
