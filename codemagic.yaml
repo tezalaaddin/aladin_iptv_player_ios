@@ -11,22 +11,31 @@ workflows:
         script: flutter pub get
       - name: Isar code gen
         script: flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Initialize iOS architecture (macOS only)
+      - name: Initialize iOS architecture
         script: |
-          # Windows'ta oluşturulmayan macOS dosyalarını (podhelper.rb vb.) üretir
           flutter create --platforms=ios .
+          # Copy podhelper if missing
+          cp $FLUTTER_ROOT/packages/flutter_tools/bin/podhelper.rb ios/Flutter/ || true
+      - name: Configure Unsigned Build
+        script: |
+          # Inject signing bypass into XCConfigs
+          echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
+          echo "PROVISIONING_PROFILE=" >> ios/Flutter/Release.xcconfig
+          echo "PROVISIONING_PROFILE_SPECIFIER=" >> ios/Flutter/Release.xcconfig
+          echo "DEVELOPMENT_TEAM=" >> ios/Flutter/Release.xcconfig
       - name: Install Pods
         script: |
           cd ios
-          rm -rf Pods
-          rm -rf Podfile.lock
+          rm -rf Pods Podfile.lock
           pod install
       - name: Build Unsigned Release
         script: |
-          # Create Flutter assets and frameworks (ignore signing errors here)
-          flutter build ios --release --no-codesign || true
+          # Use xcodebuild directly to avoid Flutter CLI's Team ID requirement
+          # First, generate AOT artifacts
+          flutter build ios --release --no-codesign --extra-gen-snapshot-options=--no-use-integer-division || true
           
-          # Force a clean unsigned build via xcodebuild
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
@@ -37,11 +46,13 @@ workflows:
             CODE_SIGN_IDENTITY="" \
             PROVISIONING_PROFILE="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
+            DEVELOPMENT_TEAM="" \
             -quiet
             
-          # Export the .app artifact
+          # Move build to artifacts
           cd ..
           mkdir -p build/ios/iphoneos
-          cp -R ios/build/Release-iphoneos/Runner.app build/ios/iphoneos/ 2>/dev/null || cp -R ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Runner.app build/ios/iphoneos/
+          cp -R ios/build/Release-iphoneos/Runner.app build/ios/iphoneos/ 2>/dev/null || \
+          cp -R ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Runner.app build/ios/iphoneos/
     artifacts:
       - build/ios/iphoneos/Runner.app
