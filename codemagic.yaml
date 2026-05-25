@@ -11,8 +11,6 @@ workflows:
         script: flutter pub get
       - name: Isar code gen
         script: flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Disable Swift Package Manager (Force Pods)
-        script: flutter config --no-native-assets
       - name: Install Pods
         script: |
           cd ios
@@ -21,11 +19,10 @@ workflows:
           pod install
       - name: Build Unsigned Release
         script: |
-          # 1. Önce Flutter'ın Dart kodunu (AOT) ve asset'leri hazırlamasını sağlayalım.
-          # Bu komut imza hatası verse bile gerekli dosyaları (App.framework vb.) oluşturur.
+          # Create Flutter assets and frameworks (ignore signing errors here)
           flutter build ios --release --no-codesign || true
           
-          # 2. Şimdi gerçek Xcode build işlemini imza kontrollerini bypass ederek başlatalım.
+          # Force a clean unsigned build via xcodebuild
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
@@ -38,7 +35,7 @@ workflows:
             PROVISIONING_PROFILE_SPECIFIER="" \
             -quiet
             
-          # 3. Build klasörünü Codemagic'in göreceği yere taşıyalım
+          # Export the .app artifact
           cd ..
           mkdir -p build/ios/iphoneos
           cp -R ios/build/Release-iphoneos/Runner.app build/ios/iphoneos/ 2>/dev/null || cp -R ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Runner.app build/ios/iphoneos/
