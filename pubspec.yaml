@@ -1,7 +1,7 @@
 name: aladin_iptv_player_ios
 description: Aladin Media Player Pro TV — iOS/iPad Edition
 publish_to: 'none'
-version: 1.0.0
+version: 1.0.0+4
 
 environment:
   sdk: '>=3.2.0 <4.0.0'

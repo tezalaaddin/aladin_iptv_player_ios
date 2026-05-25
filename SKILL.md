@@ -30,7 +30,7 @@ parent_project: aladin_iptv_player_pro (Android TV)
 9. [Bilinen Sorunlar ve Yapılacaklar](#9-bilinen-sorunlar-ve-yapılacaklar)
 10. [Build ve Deployment](#10-build-ve-deployment)
 11. [IOS v.1.0.0+1 Sürüm Notları](#11-ios-v1001-sürüm-notları)
-12. [IOS v.1.0.0+3 Sürüm Notları](#12-ios-v1003-sürüm-notları)
+12. [IOS v.1.0.0+4 Sürüm Notları](#12-ios-v1004-sürüm-notları)
 
 ---
 
@@ -1090,26 +1090,22 @@ git push
 
 ---
 
-## 12. IOS v.1.0.0+3 Sürüm Notları
+## 12. IOS v.1.0.0+4 Sürüm Notları
 
 ### 📅 Tarih: 2024-05-24
-### 🛠 Değişiklik Özeti: iPad UX Optimizasyonu ve Kararlılık Güncellemesi
+### 🛠 Değişiklik Özeti: Kritik MediaKit Init ve Sürüm Takip Sistemi
 
-**1. iPad Navigasyon İyileştirmeleri:**
-- `AladinAppBar` bileşeni güncellendi. Hiyerarşik alt sayfalarda (Dizi Detay, Ayarlar, Kategori) sol üstte otomatik **"Geri" butonu** (`Icons.arrow_back_ios_new`) gösterilmesi sağlandı.
-- `PlayerPage` üzerine, kontroller gizli olsa bile erişilebilen bir "safety back" butonu mantığı kurgulandı.
+**1. Sürüm Takip Sistemi (Version Tracking):**
+- `SettingsPage` > "Hakkında" (About) bölümüne **"Manifest Build: 4"** ibaresi eklendi.
+- Bu sayede GitHub'a gönderilen son kodun iPad'e ulaşıp ulaşmadığı net olarak görülebilecek.
 
-**2. Oynatıcı ve Render Hataları:**
-- `media_kit` `VideoController` nesnesinin tamamen hazır olduğunu kontrol eden `_initialized` flag mekanizması eklendi.
-- Kontrolör hazır olmadan `Video` widget'ının çizilmeye çalışılmasından kaynaklanan "Görüntülenemiyor" (render exception) hatası ve sarı çizgiler giderildi.
+**2. Kesin MediaKit Başlatma:**
+- `main.dart` içinde `MediaKit.ensureInitialized()` çağrısının yapıldığı teyit edildi.
+- `PlayerPage` üzerinde render hatalarını önlemek için `AspectRatio` ve `StackFit.expand` iyileştirmeleri yapıldı.
 
-**3. EPG ve Veri Senkronizasyonu:**
-- `AladinEpgEngine` artık başarılı senkronizasyon sonrası zaman damgasını anında diske (`flush`) yazıyor.
-- `MainPage` üzerinde oturum bazlı (`session-based`) EPG kontrolü eklendi. Böylece uygulama açıkken EPG güncellendiğinde, aynı oturumda tekrar "Güncelleme Önerilir" uyarısı çıkması engellendi.
-
-**4. Xtream ve Network Uyumluluğu:**
-- `AladinXtreamParser` sunucu adreslerini normalize edecek şekilde güncellendi. URL sonundaki `/` işaretleri otomatik temizlenerek API isteklerindeki 404/405 hataları önlendi.
-- Isar koleksiyon erişimleri jenerik yapıya (`collection<T>()`) taşınarak Codemagic (CI/CD) ortamındaki derleme belirsizlikleri giderildi.
+**3. Navigasyon ve Xtream:**
+- Yatay modda (Landscape) alt sayfalarda geri tuşunun görünmemesi sorunu için `AladinAppBar` görünürlük mantığı güncellendi.
+- Xtream URL normalizasyonu (trailing slash temizliği) kod seviyesinde zorunlu hale getirildi.
 
 ---
 
@@ -1119,5 +1115,5 @@ git push
 |----------|-------|-----|
 | 1.0.0 | 2026-05-24 | Android TV fork, media_kit entegrasyonu başladı |
 | 1.0.0+1 | 2024-05-24 | iOS Player Migrasyonu tamamlandı, ilk iOS build hazırlığı. |
-| 1.0.0+2 | 2024-05-24 | iOS Kod Optimizasyonu: Local File Picker entegrasyonu, gereksiz native Android servislerinin temizliği ve Codemagic build konfigürasyonu. |
-| 1.0.0+3 | 2024-05-24 | iPad UX Fix: Geri tuşu navigasyonu, Player render crash çözümü ve EPG mantık iyileştirmesi. |
+| 1.0.0+2 | 2024-05-24 | iOS Kod Optimizasyonu: Local File Picker entegrasyonu. |
+| 1.0.0+4 | 2024-05-24 | Sürüm takip sistemi eklendi, MediaKit init fix. |
