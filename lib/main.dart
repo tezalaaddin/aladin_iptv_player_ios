@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' as foundation;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
@@ -45,7 +45,7 @@ Future<void> main() async {
     debugPrint('└────────────────────────────────────────────────');
 
     // ── Release: TV'ye yakışır minimal hata arayüzü ───────────────────────
-    if (kReleaseMode) {
+    if (foundation.kReleaseMode) {
       return Container(
         decoration: BoxDecoration(
           color: Colors.black.withValues(alpha: 0.6),

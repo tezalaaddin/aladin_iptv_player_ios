@@ -5,6 +5,8 @@ import 'package:fuzzy/fuzzy.dart';
 import '../database/aladin_isar_service.dart';
 import '../models/aladin_channel_model.dart';
 import '../models/aladin_category_model.dart';
+import '../models/aladin_playlist_model.dart';
+import '../models/aladin_epg_model.dart';
 
 class ChannelService {
   ChannelService._();
