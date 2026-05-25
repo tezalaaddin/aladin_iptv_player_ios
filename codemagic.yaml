@@ -1,44 +1,36 @@
 workflows:
   ios-release:
-    name: iOS Release Build
+    name: iOS Release Build (Unsigned)
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
-      groups:
-        - app_store_credentials # Optional: For automatic publishing
       flutter: stable
       xcode: latest
     scripts:
-      - name: Set up code signing
-        script: |
-          # Use this script to set up code signing with your provisioning profile and certificate
-          # keychain add-certificates
       - name: Flutter pub get
         script: flutter pub get
       - name: Isar code gen
         script: flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Build iOS
+      - name: Install Pods
         script: |
-          # Use --no-codesign for local testing if you don't have a developer account
-          flutter build ios --release --no-codesign
+          cd ios
+          rm -rf Pods
+          rm -rf Podfile.lock
+          pod install
+      - name: Build iOS (Force Unsigned)
+        script: |
+          flutter build ios --release --no-codesign --extra-gen-snapshot-options=--no-use-integer-division
+          
+          # Manuel Archive (Eğer üstteki hata verirse bu yöntem daha garantidir)
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE="" \
+            | xcpretty
     artifacts:
       - build/ios/iphoneos/Runner.app
       - build/ios/ipa/*.ipa
-
-  ios-debug:
-    name: iOS Debug Build
-    max_build_duration: 60
-    instance_type: mac_mini_m2
-    environment:
-      flutter: stable
-      xcode: latest
-    scripts:
-      - name: Flutter pub get
-        script: flutter pub get
-      - name: Isar code gen
-        script: flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Build iOS Debug
-        script: |
-          flutter build ios --debug --no-codesign
-    artifacts:
-      - build/ios/iphoneos/Runner.app
