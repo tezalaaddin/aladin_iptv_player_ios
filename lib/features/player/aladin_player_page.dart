@@ -54,15 +54,12 @@ class _PlayerPageState extends State<PlayerPage> {
   void initState() {
     super.initState();
 
-    // ⚡ Arka plan sync'i oynatma sırasında durdur
     MetadataSyncService.instance.stopSync();
 
-    // Boş URL'leri filtrele
     _playable = widget.playlist
         .where((e) => e.url.trim().isNotEmpty)
         .toList();
 
-    // Xtream ana seri kaydı (url boş) → seri detay sayfasına yönlendir
     if (widget.channel.url.trim().isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -86,18 +83,18 @@ class _PlayerPageState extends State<PlayerPage> {
 
     _isLive = _detectLive(widget.channel.url);
 
-    // media_kit başlat
     try {
       _player = Player();
       _controller = VideoController(_player);
       _initialized = true;
+      
+      _setupStreams();
+      _playChannel(_playable[_currentIndex]);
     } catch (e) {
       debugPrint('[PlayerPage] Init error: $e');
       _hasError = true;
     }
-
-    _setupStreams();
-    _playChannel(_playable[_currentIndex]);
+    
     _startHideTimer();
   }
 
@@ -106,13 +103,12 @@ class _PlayerPageState extends State<PlayerPage> {
       if (mounted) setState(() => _isLoading = buffering);
     });
 
-    _player.stream.playing.listen((_) {
-      if (mounted) setState(() => _hasError = false);
+    _player.stream.playing.listen((p) {
+      if (mounted && p) setState(() => _hasError = false);
     });
 
     _player.stream.error.listen((error) {
       if (mounted) setState(() => _hasError = true);
-      debugPrint('[PlayerPage] media_kit error: $error');
     });
 
     _player.stream.position.listen((pos) {
@@ -123,7 +119,6 @@ class _PlayerPageState extends State<PlayerPage> {
       if (mounted) setState(() => _duration = dur);
     });
 
-    // İlerleme kaydı — 60 saniyede bir (Android sürümüyle aynı mantık)
     _progressTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       _saveProgress();
     });
@@ -163,10 +158,8 @@ class _PlayerPageState extends State<PlayerPage> {
     }
   }
 
-  void _seekForward() =>
-      _player.seek(_position + const Duration(seconds: 30));
-  void _seekBack() =>
-      _player.seek(_position - const Duration(seconds: 10));
+  void _seekForward() => _player.seek(_position + const Duration(seconds: 30));
+  void _seekBack() => _player.seek(_position - const Duration(seconds: 10));
 
   void _startHideTimer() {
     _hideTimer?.cancel();
@@ -184,7 +177,6 @@ class _PlayerPageState extends State<PlayerPage> {
     final ch = _playable.isNotEmpty ? _playable[_currentIndex] : null;
     if (ch == null) return;
     if (_duration.inSeconds < 10) return;
-    // ChannelService.updateProgressByUrl → %3-%90 arası kayıt, %90+ bitmiş say
     await ChannelService.instance.updateProgressByUrl(
       ch.url,
       _position.inSeconds,
@@ -194,12 +186,11 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   void dispose() {
-    _saveProgress(); // Kapatırken son pozisyonu kaydet
+    _saveProgress();
     _hideTimer?.cancel();
     _progressTimer?.cancel();
     _focusNode.dispose();
     _player.dispose();
-    // ⚡ Oynatma bitince sync'i yeniden başlat
     MetadataSyncService.instance.startSync(
       widget.channel.playlistId,
       lang: AppState.instance.lang,
@@ -207,35 +198,21 @@ class _PlayerPageState extends State<PlayerPage> {
     super.dispose();
   }
 
-  // ── Key handler: D-pad + iPad klavye + Apple TV Remote ──────────────────
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
-
     setState(() => _showControls = true);
     _startHideTimer();
 
     switch (event.logicalKey) {
-      case LogicalKeyboardKey.arrowUp:
-        if (_isLive) _channelUp();
-        return KeyEventResult.handled;
-      case LogicalKeyboardKey.arrowDown:
-        if (_isLive) _channelDown();
-        return KeyEventResult.handled;
-      case LogicalKeyboardKey.arrowLeft:
-        if (!_isLive) _seekBack();
-        return KeyEventResult.handled;
-      case LogicalKeyboardKey.arrowRight:
-        if (!_isLive) _seekForward();
-        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowUp: if (_isLive) _channelUp(); return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowDown: if (_isLive) _channelDown(); return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowLeft: if (!_isLive) _seekBack(); return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowRight: if (!_isLive) _seekForward(); return KeyEventResult.handled;
       case LogicalKeyboardKey.select:
       case LogicalKeyboardKey.enter:
-      case LogicalKeyboardKey.space:
-        _player.playOrPause();
-        return KeyEventResult.handled;
+      case LogicalKeyboardKey.space: _player.playOrPause(); return KeyEventResult.handled;
       case LogicalKeyboardKey.escape:
-      case LogicalKeyboardKey.goBack:
-        Navigator.pop(context);
-        return KeyEventResult.handled;
+      case LogicalKeyboardKey.goBack: Navigator.pop(context); return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
   }
@@ -251,48 +228,29 @@ class _PlayerPageState extends State<PlayerPage> {
         child: GestureDetector(
           onTap: _onTap,
           child: Stack(
-            fit: StackFit.expand, // Stack tüm ekranı kaplasın
+            fit: StackFit.expand,
             children: [
-              // Video
               if (_initialized)
                 Center(
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9, // Default fallback ratio
-                    child: Video(controller: _controller),
-                  ),
-                )
-              else
-                const Center(child: Icon(Icons.videocam_off, color: Colors.white24, size: 64)),
-
-              // Yükleniyor
-              if (_isLoading)
-                const Center(
-                  child: CircularProgressIndicator(color: AppTheme.accent),
+                  child: Video(controller: _controller),
                 ),
-
-              // Hata
+              if (_isLoading)
+                const Center(child: CircularProgressIndicator(color: AppTheme.accent)),
               if (_hasError)
                 Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.error_outline,
-                          color: Colors.white54, size: 48),
+                      const Icon(Icons.error_outline, color: Colors.white54, size: 48),
                       const SizedBox(height: 12),
-                      const Text('Yayın yüklenemedi',
-                          style: TextStyle(color: Colors.white70)),
-                      const SizedBox(height: 12),
+                      const Text('Yayın yüklenemedi', style: TextStyle(color: Colors.white70)),
                       TextButton(
-                        onPressed: () =>
-                            _playChannel(_playable[_currentIndex]),
-                        child: const Text('Yeniden Dene',
-                            style: TextStyle(color: AppTheme.accent)),
+                        onPressed: () => _playChannel(_playable[_currentIndex]),
+                        child: const Text('Yeniden Dene', style: TextStyle(color: AppTheme.accent)),
                       ),
                     ],
                   ),
                 ),
-
-              // Kontroller overlay
               AnimatedOpacity(
                 opacity: _showControls ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 300),
@@ -306,162 +264,70 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   Widget _buildControls() {
-    final ch = _playable.isNotEmpty
-        ? _playable[_currentIndex]
-        : widget.channel;
-
+    final ch = _playable.isNotEmpty ? _playable[_currentIndex] : widget.channel;
     return Column(
       children: [
-        // Üst bar
         Container(
           padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
           decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.black87, Colors.transparent],
-            ),
+            gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black87, Colors.transparent]),
           ),
           child: Row(
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new,
-                    color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
+              IconButton(icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white), onPressed: () => Navigator.pop(context)),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      ch.name,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (ch.categoryName.isNotEmpty)
-                      Text(
-                        ch.categoryName,
-                        style: const TextStyle(
-                            color: Colors.white60, fontSize: 13),
-                      ),
+                    Text(ch.name, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+                    if (ch.categoryName.isNotEmpty) Text(ch.categoryName, style: const TextStyle(color: Colors.white60, fontSize: 13)),
                   ],
                 ),
               ),
               if (_isLive)
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text('LIVE',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(4)),
+                  child: const Text('LIVE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                 ),
             ],
           ),
         ),
-
         const Spacer(),
-
-        // Alt bar
         Container(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
           decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.bottomCenter,
-              end: Alignment.topCenter,
-              colors: [Colors.black87, Colors.transparent],
-            ),
+            gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black87, Colors.transparent]),
           ),
           child: Column(
             children: [
-              // Seek bar (sadece VOD)
               if (!_isLive && _duration.inSeconds > 0)
                 Slider(
-                  value: _position.inSeconds
-                      .clamp(0, _duration.inSeconds)
-                      .toDouble(),
+                  value: _position.inSeconds.clamp(0, _duration.inSeconds).toDouble(),
                   max: _duration.inSeconds.toDouble(),
-                  onChanged: (v) =>
-                      _player.seek(Duration(seconds: v.toInt())),
+                  onChanged: (v) => _player.seek(Duration(seconds: v.toInt())),
                   activeColor: AppTheme.accent,
-                  inactiveColor: Colors.white24,
                 ),
-
-              // Kontrol düğmeleri
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Kanal yukarı (Live)
-                  if (_isLive)
-                    IconButton(
-                      icon: const Icon(Icons.skip_previous,
-                          color: Colors.white, size: 36),
-                      onPressed: _channelUp,
-                    ),
-
-                  // 10sn geri (VOD)
-                  if (!_isLive)
-                    IconButton(
-                      icon: const Icon(Icons.replay_10,
-                          color: Colors.white, size: 36),
-                      onPressed: _seekBack,
-                    ),
-
+                  if (_isLive) IconButton(icon: const Icon(Icons.skip_previous, color: Colors.white, size: 36), onPressed: _channelUp),
+                  if (!_isLive) IconButton(icon: const Icon(Icons.replay_10, color: Colors.white, size: 36), onPressed: _seekBack),
                   const SizedBox(width: 16),
-
-                  // Oynat/Durdur
-                  StreamBuilder<bool>(
-                    stream: _player.stream.playing,
-                    builder: (_, snap) => IconButton(
-                      icon: Icon(
-                        (snap.data ?? false)
-                            ? Icons.pause_circle_filled
-                            : Icons.play_circle_filled,
-                        color: Colors.white,
-                        size: 64,
-                      ),
-                      onPressed: _player.playOrPause,
-                    ),
+                  IconButton(
+                    icon: Icon(_player.state.playing ? Icons.pause_circle_filled : Icons.play_circle_filled, color: Colors.white, size: 64),
+                    onPressed: () => setState(() => _player.playOrPause()),
                   ),
-
                   const SizedBox(width: 16),
-
-                  // 30sn ileri (VOD)
-                  if (!_isLive)
-                    IconButton(
-                      icon: const Icon(Icons.forward_30,
-                          color: Colors.white, size: 36),
-                      onPressed: _seekForward,
-                    ),
-
-                  // Kanal aşağı (Live)
-                  if (_isLive)
-                    IconButton(
-                      icon: const Icon(Icons.skip_next,
-                          color: Colors.white, size: 36),
-                      onPressed: _channelDown,
-                    ),
+                  if (!_isLive) IconButton(icon: const Icon(Icons.forward_30, color: Colors.white, size: 36), onPressed: _seekForward),
+                  if (_isLive) IconButton(icon: const Icon(Icons.skip_next, color: Colors.white, size: 36), onPressed: _channelDown),
                 ],
               ),
-
-              // Zaman göstergesi (VOD)
               if (!_isLive && _duration.inSeconds > 0)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    '${_formatDuration(_position)} / ${_formatDuration(_duration)}',
-                    style: const TextStyle(
-                        color: Colors.white60, fontSize: 13),
-                  ),
+                  child: Text('${_formatDuration(_position)} / ${_formatDuration(_duration)}', style: const TextStyle(color: Colors.white60, fontSize: 13)),
                 ),
             ],
           ),
