@@ -12,54 +12,31 @@ workflows:
           flutter precache --ios
           flutter pub get
       - name: Isar Code Gen
-        script: flutter pub run build_runner build --delete-conflicting-outputs
-      - name: Initialize iOS Architecture
         script: |
-          # Projeyi iOS için hazırla ama Podfile'ı korumaya çalış
-          flutter create --platforms=ios .
-      - name: Prepare Flutter Frameworks
+          flutter pub run build_runner build --delete-conflicting-outputs
+      - name: Build Unsigned Release (Flutter)
         script: |
-          # Ephemeral klasörünü ve AOT snapshot'ları oluştur
-          # Bu adımın başarısız olması normaldir (imza yüzünden), ama dosyalar oluşur
-          flutter build ios --release --no-codesign || true
-      - name: Configure Unsigned Build
+          # ÖNEMLİ: flutter create ÇALIŞTIRMA (Ayarlarımızı bozar)
+          # Doğrudan flutter build kullan, imza hatasını görmezden gel
+          flutter build ios --release --no-codesign --verbose || true
+      - name: Embed Frameworks Manually (Fallback)
         script: |
-          # İmza bypass ayarlarını XCConfig dosyalarına enjekte et
-          echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
-          echo "PROVISIONING_PROFILE=" >> ios/Flutter/Release.xcconfig
-          echo "PROVISIONING_PROFILE_SPECIFIER=" >> ios/Flutter/Release.xcconfig
-          echo "DEVELOPMENT_TEAM=" >> ios/Flutter/Release.xcconfig
-          
-          # Podfile'ın doğru çalıştığından emin olmak için yerel kopyayı kaldır
-          # Çünkü Podfile artık doğrudan SDK'daki podhelper'ı kullanıyor.
-          rm -f ios/Flutter/podhelper.rb
-      - name: Install Pods
+          # Eğer flutter build ios --no-codesign frameworkleri kopyalamadıysa zorla kopyala
+          APP_DIR="build/ios/iphoneos/Runner.app"
+          if [ -d "$APP_DIR" ]; then
+            mkdir -p "$APP_DIR/Frameworks"
+            cp -R ios/Flutter/App.framework "$APP_DIR/Frameworks/" 2>/dev/null || true
+            cp -R $FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64/Flutter.framework "$APP_DIR/Frameworks/" 2>/dev/null || true
+            
+            # Assetleri kontrol et
+            if [ ! -d "$APP_DIR/Frameworks/App.framework/flutter_assets" ]; then
+               cp -R build/flutter_assets "$APP_DIR/" 2>/dev/null || true
+            fi
+          fi
+      - name: List Build Result
         script: |
-          # CocoaPods kurulumu
-          cd ios
-          pod install
-      - name: Build Unsigned Release (xcodebuild)
-        script: |
-          cd ios
-          # Temiz bir build al
-          xcodebuild -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            PROVISIONING_PROFILE="" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            DEVELOPMENT_TEAM="" \
-            clean build | xcpretty
-      - name: Export Artifacts
-        script: |
-          mkdir -p build/ios/iphoneos
-          # Üretilen Runner.app dosyasını bul ve kopyala
-          find ios/build/Release-iphoneos -name "Runner.app" -exec cp -R {} build/ios/iphoneos/ \; 2>/dev/null || \
-          find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*" -exec cp -R {} build/ios/iphoneos/ \;
+          echo "Build dizini içeriği:"
+          ls -R build/ios/iphoneos/Runner.app || echo "Runner.app bulunamadı!"
+          du -sh build/ios/iphoneos/Runner.app || echo "Boyut ölçülemedi"
     artifacts:
       - build/ios/iphoneos/Runner.app
