@@ -16,18 +16,18 @@ workflows:
           flutter pub run build_runner build --delete-conflicting-outputs
       - name: Force Release AOT Generation
         script: |
-          # 1. Tertemiz bir başlangıç
+          # 1. Ortamı temizle
           flutter clean
           flutter pub get
           
-          # 2. Release Beyin (App.framework) Üretimi
-          # Bu komut tam olarak senin çalışan build'indeki yapıyı üretir.
-          flutter build ios --release --no-codesign || true
+          # 2. Release Beyin (App.framework) Zorla Üret
+          # Bu komut imza kontrolüne takılmadan gerçek Release kodunu üretir.
+          flutter assemble -dTargetPlatform=ios -dBuildMode=release release_ios_bundle_flutter_assets
           
       - name: Xcode Production Build
         script: |
           cd ios
-          # Sahte imza ile gerçek binary (Kalp) üretimini zorla
+          # Sahte imza ile ana binary üretimini zorla
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
@@ -38,50 +38,54 @@ workflows:
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             clean build | xcpretty
             
-      - name: Blueprint Assembly (Build 26)
+      - name: Blueprint Surgical Assembly (Build 27)
         script: |
-          # 1. Hedef klasörü senin çalışan versiyonun gibi hazırla
+          # 1. Hazırlık
           FINAL_APP="$CM_BUILD_DIR/build/ios/iphoneos/Runner.app"
           rm -rf "$FINAL_APP"
           mkdir -p "$FINAL_APP/Frameworks"
           
-          # 2. İSKELETİ AL (Xcode çıktısından Runner binary'sini al)
+          # 2. İSKELETİ AL (Xcode çıktısından senin çalışan yapını kopyala)
           REAL_APP=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*" | xargs ls -td | head -n 1)
+          echo "Kaynak Iskelet: $REAL_APP"
           cp -a "$REAL_APP/." "$FINAL_APP/"
           
-          # 3. BEYİN (App.framework) YERLEŞİMİ
-          # Senin çalışan listende olduğu gibi Frameworks içine koyuyoruz.
+          # 3. BEYİN NAKLİ (App.framework - Release)
+          # Senin çalışan listendeki gibi Frameworks içine koyuyoruz.
           echo "Release Beyin enjekte ediliyor..."
           rm -rf "$FINAL_APP/Frameworks/App.framework"
           cp -R build/ios/iphoneos/App.framework "$FINAL_APP/Frameworks/"
           
-          # 4. MOTOR (Flutter.framework Release) YERLEŞİMİ
-          echo "Release Motor (SDK'dan) enjekte ediliyor..."
+          # 4. MOTOR NAKLİ (Flutter.framework - SDK Release Sürümü)
+          # iPad'in 'Debug Mode' uyarısı vermemesi için şart.
+          echo "Release Motor enjekte ediliyor..."
           ENGINE_RELEASE="$FLUTTER_ROOT/bin/cache/artifacts/engine/ios-release/Flutter.xcframework/ios-arm64/Flutter.framework"
           rm -rf "$FINAL_APP/Frameworks/Flutter.framework"
           cp -R "$ENGINE_RELEASE" "$FINAL_APP/Frameworks/"
           
-          # 5. TÜM PLUGINLERİ VE BUNDLE'LARI TOPLA
-          echo "Pluginler ve paketler toplanıyor..."
+          # 5. TÜM PLUGIN VE BUNDLELARI TOPLA
           find ~/Library/Developer/Xcode/DerivedData -name "*.framework" -path "*/Release-iphoneos/*" -not -name "App.framework" -not -name "Flutter.framework" -exec cp -R {} "$FINAL_APP/Frameworks/" \; || true
           find ~/Library/Developer/Xcode/DerivedData -name "*.bundle" -path "*/Release-iphoneos/*" -exec cp -R {} "$FINAL_APP/" \; || true
           
-          # 6. KRİTİK DOSYALAR (libswift vb.)
-          cp "$REAL_APP/Frameworks/libswift_Concurrency.dylib" "$FINAL_APP/Frameworks/" || true
+          # 6. ASSETLERİ ÇALIŞAN YAPIYA GÖRE DÜZENLE
+          # Senin listende assetler App.framework içindeydi, oraya kopyalıyoruz.
+          mkdir -p "$FINAL_APP/Frameworks/App.framework/flutter_assets"
+          cp -R build/ios/iphoneos/flutter_assets/* "$FINAL_APP/Frameworks/App.framework/flutter_assets/" || true
           
-          # 7. KİMLİK VE EXECUTABLE
+          # 7. KİMLİK DOĞRULAMA
           echo "APPL????" > "$FINAL_APP/PkgInfo"
           /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable Runner" "$FINAL_APP/Info.plist" || true
 
-      - name: Final Integrity Check Build 26
+      - name: Final Verification Build 27
         script: |
           APP_PATH="build/ios/iphoneos/Runner.app"
-          echo "--- BLUEPRINT KONTROL (Release?) ---"
+          echo "--- BLUEPRINT DOĞRULAMA ---"
           ls -F "$APP_PATH"
-          echo "Frameworks içeriği:"
+          echo "Frameworks (Release Check):"
           ls "$APP_PATH/Frameworks"
+          [ -d "$APP_PATH/Frameworks/App.framework" ] && echo "✅ Release Beyin Hazır"
+          [ -d "$APP_PATH/Frameworks/Flutter.framework" ] && echo "✅ Release Motor Hazır"
           du -sh "$APP_PATH"
-          [ -d "$APP_PATH/Frameworks/App.framework/flutter_assets" ] && echo "✅ Beyin ve Assetler İçeride" || echo "⚠️ Assetler kök dizinde aranacak"
           
     artifacts:
       - build/ios/iphoneos/Runner.app
